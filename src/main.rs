@@ -7,6 +7,14 @@ enum SquareType {
     X,
 }
 
+#[derive(Debug, PartialEq)]
+enum GameStatus {
+    XWin,
+    OWin,
+    Draw,
+    StillPlaying,
+}
+
 #[derive(Debug)]
 struct TicTacToeBoard {
     content: Vec<Vec<SquareType>>,
@@ -46,9 +54,47 @@ impl TicTacToeBoard {
             println!();
         }
     }
+
+    pub fn check_status(&self) -> GameStatus {
+        //self.content.iter().reduce;
+        //Hey
+        return GameStatus::StillPlaying;
+    }
+
+    fn check_rows(&self, square_type: SquareType) -> bool {
+        // let len = self.content.len();
+        // self.content[0..len].iter().map(|x| println!("{x:?}"));
+        true
+        //      x == square_type)
+        //  .reduce(|acc, e| acc && e)
+        //self.content[0..len].iter().map(|x| x == square_type)
+    }
 }
 
 fn main() {
-    let my_board = TicTacToeBoard::from_string("X O X | B O X | X O O");
+    let my_board = TicTacToeBoard::from_string(
+        "X O X |
+         B O X |
+         X O O",
+    );
     my_board.print_board();
+    println!("{my_board:?}");
+    println!("content.len: {}", my_board.content.len());
+    println!("content[0].len: {}", my_board.content[0].len());
+    my_board.check_rows(SquareType::X);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn x_win() {
+        let x_win_board = TicTacToeBoard::from_string(
+            "X O X |
+             X O O |
+             X X O",
+        );
+        assert_eq!(x_win_board.check_status(), GameStatus::XWin);
+    }
 }
