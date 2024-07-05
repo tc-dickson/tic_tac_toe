@@ -1,56 +1,62 @@
 // This is a test to impliment the min-max algorithm for tic-tac-toe in Rust
 mod tic_tac_toe;
+use tic_tac_toe::*;
 
 fn main() {
     let mut my_board = tic_tac_toe::TicTacToeBoard::from_string(
-        "X X B |
-         O O B |
-         X O O",
+        "O X O |
+         O X X |
+         X O X",
     );
 
-    println!("Display version of my_board:\n\n{}\n", my_board);
-    println!("size: {:?}", my_board.size);
-    println!("blank_squares_set: {:?}", my_board.blank_squares_set);
-    println!("check_status: {:?}", my_board.game_status);
+    // println!("Display version of my_board:\n\n{}\n", my_board);
 
-    my_board.insert(
-        &tic_tac_toe::Point { x: 0, y: 2 },
-        tic_tac_toe::SquareType::X,
-    );
-    println!("Display version of my_board:\n\n{}\n", my_board);
-    println!("blank_squares_set: {:?}", my_board.blank_squares_set);
-    println!("check_status: {:?}", my_board.game_status);
+    //  my_board.insert(
+    //      &tic_tac_toe::Point { x: 0, y: 2 },
+    //      tic_tac_toe::SquareType::X,
+    //  );
 
-    my_board.insert(
-        &tic_tac_toe::Point { x: 1, y: 2 },
-        tic_tac_toe::SquareType::O,
-    );
-    println!("Display version of my_board:\n\n{}\n", my_board);
-    println!("blank_squares_set: {:?}", my_board.blank_squares_set);
-    println!("check_status: {:?}", my_board.game_status);
+    // println!("Display version of my_board:\n\n{}\n", my_board);
 
-    my_board.insert(
-        &tic_tac_toe::Point { x: 0, y: 1 },
-        tic_tac_toe::SquareType::X,
-    );
-    println!("Display version of my_board:\n\n{}\n", my_board);
-    println!("blank_squares_set: {:?}", my_board.blank_squares_set);
-    println!("check_status: {:?}", my_board.game_status);
+    let mut manual_move_score_table = vec![
+        MoveScorePair {
+            player_move: Point { x: 1, y: 1 },
+            score: GameStatus::OWin,
+        },
+        MoveScorePair {
+            player_move: Point { x: 2, y: 2 },
+            score: GameStatus::Draw,
+        },
+        MoveScorePair {
+            player_move: Point { x: 0, y: 0 },
+            score: GameStatus::OWin,
+        },
+        MoveScorePair {
+            player_move: Point { x: 1, y: 0 },
+            score: GameStatus::XWin,
+        },
+        MoveScorePair {
+            player_move: Point { x: 2, y: 0 },
+            score: GameStatus::Draw,
+        },
+        MoveScorePair {
+            player_move: Point { x: 3, y: 0 },
+            score: GameStatus::OWin,
+        },
+        MoveScorePair {
+            player_move: Point { x: 4, y: 0 },
+            score: GameStatus::XWin,
+        },
+    ];
 
-    my_board.insert(
-        &tic_tac_toe::Point { x: 0, y: 2 },
-        tic_tac_toe::SquareType::X,
-    );
-    my_board.insert(
-        &tic_tac_toe::Point { x: 3, y: 3 },
-        tic_tac_toe::SquareType::X,
-    );
+    //  println!("manual_move_score_table: {:?}", manual_move_score_table);
+    //  println!(
+    //      "select_score: {:?}",
+    //      TicTacToeBoard::select_score(&mut manual_move_score_table, Player::X)
+    //  );
+    // println!("my_board GameStatus: {:?}", my_board.game_status);
 
-    // println!("check_rows: {:?}", my_board.check_rows());
-    // println!("check_cols: {:?}", my_board.check_cols());
-    // println!("check_diag: {:?}", my_board.check_diag());
+    // println!("min-max output: {:?}", my_board.minmax(Player::O, 0));
 
-    //  let blank_board = TicTacToeBoard::initialize_blank_board(3);
-    //  println!("Display version of blank_board:\n\n{}\n", blank_board);
-    //  println!("Debug version of blank_board:\n\n{:?}\n", blank_board);
+    TicTacToeBoard::run();
 }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io;
 
 #[derive(Debug, Clone)]
 pub enum SquareType {
@@ -65,12 +66,23 @@ impl<'a> PartialLineStatus<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum GameStatus {
     XWin,
     OWin,
     Draw,
     StillPlaying,
+}
+
+impl std::fmt::Display for GameStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::XWin => write!(f, "XWin"),
+            Self::OWin => write!(f, "OWin"),
+            Self::Draw => write!(f, "Draw"),
+            Self::StillPlaying => write!(f, "StillPlaying"),
+        }
+    }
 }
 
 impl GameStatus {
@@ -116,12 +128,42 @@ impl Player {
             Player::X => Player::O,
         }
     }
+
+    fn square_type(&self) -> SquareType {
+        match self {
+            Player::X => SquareType::X,
+            Player::O => SquareType::O,
+        }
+    }
+
+    fn desired_game_status(&self) -> GameStatus {
+        match self {
+            Player::X => GameStatus::XWin,
+            Player::O => GameStatus::OWin,
+        }
+    }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct MoveScorePair {
+    pub player_move: Point,
+    pub score: GameStatus,
+}
+
+impl std::fmt::Display for MoveScorePair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({}, {}):{}",
+            self.player_move.x, self.player_move.y, self.score
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -216,19 +258,119 @@ impl TicTacToeBoard {
         )
     }
 
-    pub fn minmax(board: &mut TicTacToeBoard, player: Player) -> Vec<(Point, GameStatus)> {
-        let square_type = match player {
-            Player::X => SquareType::X,
-            Player::O => SquareType::O,
-        };
+    pub fn run() {
+        // This is the function to run the tic-tac-toe game.
+        let mut tic_tac_toe_board = TicTacToeBoard::initialize_blank_board(3);
+        let player = Player::X;
 
-        // Play in a blank square
-        while let Some(next_blank_square) = board.blank_squares_set.iter().next() {
-            let point_to_play = next_blank_square.clone();
-            board.insert(&point_to_play, square_type);
-            TicTacToeBoard::minmax(board, player.other());
+        while tic_tac_toe_board.game_status == GameStatus::StillPlaying {
+            // Print board
+            println!("\n{}\n", tic_tac_toe_board);
+
+            // Get user input to know where to play a move.
+            let mut player_move = String::new();
+            io::stdin()
+                .read_line(&mut player_move)
+                .expect("Failed to read input");
+            let user_input_as_usize = player_move
+                .split_whitespace()
+                .into_iter()
+                .map(|e| e.parse::<usize>().unwrap())
+                .collect::<Vec<usize>>();
+            let user_move = Point {
+                x: user_input_as_usize[0],
+                y: user_input_as_usize[1],
+            };
+            tic_tac_toe_board.insert(&user_move, player.square_type());
+
+            // Calculate where the opponent should move
+            let opponent_move = tic_tac_toe_board.minmax(player.other(), 0).player_move;
+            tic_tac_toe_board.insert(&opponent_move, player.other().square_type());
         }
-        ()
+
+        // Print the final result of the game
+        println!("Final Board: \n{}\n", tic_tac_toe_board);
+        println!("Final Status: {:?}", tic_tac_toe_board.game_status);
+    }
+    pub fn minmax(&mut self, player: Player, depth: u32) -> MoveScorePair {
+        // Create a vector to hold the pairs of played squares and the eventual result (assuming optimal play)
+        let mut move_score_table: Vec<MoveScorePair> = Vec::new();
+
+        if self.game_status != GameStatus::StillPlaying {
+            // Base case: if the code reaches here it means the game is over
+            //  println!("board in the base case:\n\n{}\n", self);
+            //  println!("game_status: {:?}", self.game_status);
+            //  println!("last_played_move: {:?}", last_played_move);
+
+            return MoveScorePair {
+                // The player_move field will get updated so this is just a placeholder value
+                player_move: Point { x: 0, y: 0 },
+                score: self.game_status,
+            };
+        } else {
+            // Recursive case: if the code reaches here it means the game is not yet over
+            // println!("board in the recursive case:\n{}\n", self);
+
+            assert!(!self.blank_squares_set.is_empty());
+            for i in self.blank_squares_set.iter() {
+                // Play in the next blank square
+                let mut new_board = self.clone();
+                // println!("\n---\n");
+                // println!("depth: {}", depth);
+                // println!("board before insert: \n{}", new_board);
+                new_board.insert(i, player.square_type());
+                // println!("board after insert: \n{}", new_board);
+
+                // Update the selected move's 'player_move' field to reflect the new information
+                // gained
+                let mut selected_move = new_board.minmax(player.other(), depth + 1);
+                selected_move.player_move = *i;
+                // println!("selected_move: {}", selected_move);
+                move_score_table.push(selected_move);
+            }
+            // println!("move_score_table:");
+            move_score_table
+                .iter()
+                // .inspect(|e| println!("{}", e))
+                .for_each(|_| ());
+            TicTacToeBoard::select_score(&mut move_score_table, player)
+        }
+    }
+
+    pub fn select_score(
+        move_score_table: &mut Vec<MoveScorePair>,
+        player: Player,
+    ) -> MoveScorePair {
+        let desired_game_status = player.desired_game_status();
+        let (desired_move_scores, other_move_scores): (Vec<MoveScorePair>, Vec<MoveScorePair>) =
+            move_score_table.iter().partition(|e| {
+                matches!(
+                    e,
+                    MoveScorePair {
+                        player_move: _,
+                        score: x,
+                    } if *x == desired_game_status
+                )
+            });
+
+        let (draw_move_scores, other_move_scores): (Vec<MoveScorePair>, Vec<MoveScorePair>) =
+            other_move_scores.iter().partition(|e| {
+                matches!(
+                    e,
+                    MoveScorePair {
+                        player_move: _,
+                        score: x,
+                    } if *x == GameStatus::Draw
+                )
+            });
+
+        // Return the first element of the new sorted iterator
+        desired_move_scores
+            .into_iter()
+            .chain(draw_move_scores.into_iter())
+            .chain(other_move_scores.into_iter())
+            .next()
+            .unwrap()
     }
 
     pub fn update_status(&mut self) {
@@ -524,5 +666,220 @@ mod tests {
              X O X",
         );
         assert_eq!(still_playing_board.check_diag(), GameStatus::StillPlaying);
+    }
+
+    #[test]
+    fn select_score_1() {
+        let mut manual_move_score_table = vec![
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin,
+            },
+        ];
+
+        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::X);
+        assert_eq!(
+            selected_score,
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::XWin
+            }
+        )
+    }
+
+    #[test]
+    fn select_score_2() {
+        let mut manual_move_score_table = vec![
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin,
+            },
+        ];
+
+        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        assert_eq!(
+            selected_score,
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::OWin
+            }
+        )
+    }
+
+    #[test]
+    fn select_score_3() {
+        let mut manual_move_score_table = vec![
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 2 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin,
+            },
+        ];
+
+        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        assert_eq!(
+            selected_score,
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            }
+        )
+    }
+
+    #[test]
+    fn select_score_4() {
+        let mut manual_move_score_table = vec![
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin,
+            },
+        ];
+
+        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::X);
+        assert_eq!(
+            selected_score,
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin
+            }
+        )
+    }
+
+    #[test]
+    fn select_score_5() {
+        let mut manual_move_score_table = vec![
+            MoveScorePair {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 0, y: 2 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 0 },
+                score: GameStatus::XWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 1 },
+                score: GameStatus::Draw,
+            },
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::OWin,
+            },
+            MoveScorePair {
+                player_move: Point { x: 2, y: 0 },
+                score: GameStatus::XWin,
+            },
+        ];
+
+        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        assert_eq!(
+            selected_score,
+            MoveScorePair {
+                player_move: Point { x: 1, y: 2 },
+                score: GameStatus::OWin
+            }
+        )
     }
 }
