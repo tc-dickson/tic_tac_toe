@@ -30,28 +30,23 @@ impl<'a> PartialLineStatus<'a> {
 
         match lhs {
             Self::PartialLine(S::B) => match rhs {
-                Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::X) => Self::PartialLine(&S::B),
-                Self::PartialDraw => Self::PartialLine(&S::B),
+                Self::PartialLine(S::B | S::O | S::X) | Self::PartialDraw => {
+                    Self::PartialLine(&S::B)
+                }
             },
             Self::PartialLine(S::O) => match rhs {
                 Self::PartialLine(S::B) => Self::PartialLine(&S::B),
                 Self::PartialLine(S::O) => Self::PartialLine(&S::O),
-                Self::PartialLine(S::X) => Self::PartialDraw,
-                Self::PartialDraw => Self::PartialDraw,
+                Self::PartialLine(S::X) | Self::PartialDraw => Self::PartialDraw,
             },
             Self::PartialLine(S::X) => match rhs {
                 Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O) => Self::PartialDraw,
+                Self::PartialLine(S::O) | Self::PartialDraw => Self::PartialDraw,
                 Self::PartialLine(S::X) => Self::PartialLine(&S::X),
-                Self::PartialDraw => Self::PartialDraw,
             },
             Self::PartialDraw => match rhs {
                 Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O) => Self::PartialDraw,
-                Self::PartialLine(S::X) => Self::PartialDraw,
-                Self::PartialDraw => Self::PartialDraw,
+                Self::PartialLine(S::O | S::X) | Self::PartialDraw => Self::PartialDraw,
             },
         }
     }
@@ -89,16 +84,12 @@ impl GameStatus {
     fn combine(lhs: Self, rhs: Self) -> Self {
         match lhs {
             Self::XWin => match rhs {
-                Self::XWin => Self::XWin,
                 Self::OWin => todo!("Two winners"),
-                Self::Draw => Self::XWin,
-                Self::StillPlaying => Self::XWin,
+                Self::Draw | Self::XWin | Self::StillPlaying => Self::XWin,
             },
             Self::OWin => match rhs {
                 Self::XWin => todo!("Two winners"),
-                Self::OWin => Self::OWin,
-                Self::Draw => Self::OWin,
-                Self::StillPlaying => Self::OWin,
+                Self::OWin | Self::Draw | Self::StillPlaying => Self::OWin,
             },
             Self::Draw => match rhs {
                 Self::XWin => Self::XWin,
@@ -109,8 +100,7 @@ impl GameStatus {
             Self::StillPlaying => match rhs {
                 Self::XWin => Self::XWin,
                 Self::OWin => Self::OWin,
-                Self::Draw => Self::StillPlaying,
-                Self::StillPlaying => Self::StillPlaying,
+                Self::Draw | Self::StillPlaying => Self::StillPlaying,
             },
         }
     }
@@ -167,38 +157,38 @@ impl std::fmt::Display for MoveScorePair {
 }
 
 #[derive(Clone)]
-pub struct TicTacToeBoard {
+pub struct Board {
     pub content: Vec<Vec<SquareType>>,
     pub size: usize,
     pub blank_squares_set: HashSet<Point>,
     pub game_status: GameStatus,
 }
 
-impl std::fmt::Display for TicTacToeBoard {
+impl std::fmt::Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let first_pass = self
+        let first_pass: Vec<String> = self
             .content
             .iter()
             .map(|x| {
                 x.iter()
-                    .map(|y| format!(" {} ", y))
+                    .map(|y| format!(" {y} "))
                     .collect::<Vec<String>>()
                     .as_slice()
                     .join("|")
             })
-            // .inspect(|e| println!("Display for TicTacToeBoard: {:?}", e))
-            .collect::<Vec<String>>();
+            // .inspect(|e| println!("Display for Board: {:?}", e))
+            .collect();
 
         let pass_length = self.size;
         let second_pass = first_pass
             .as_slice()
             .join(format!("\n{}\n", "-".repeat(pass_length * 4)).as_str());
 
-        write!(f, "{}", second_pass)
+        write!(f, "{second_pass}")
     }
 }
 
-impl TicTacToeBoard {
+impl Board {
     pub fn new(
         content: Vec<Vec<SquareType>>,
         size: usize,
@@ -213,36 +203,7 @@ impl TicTacToeBoard {
         }
     }
 
-    pub fn from_string(string: &str) -> Self {
-        let rows = string.split_terminator("|").collect::<Vec<&str>>();
-        let size = rows.len();
-        let mut cols;
-        let mut col_vec: Vec<Vec<SquareType>> = Vec::new();
-        let mut blank_squares_set = HashSet::new();
-        for (i, i_val) in rows.iter().enumerate() {
-            cols = i_val.split_whitespace().collect::<Vec<&str>>();
-            let mut row_vec: Vec<SquareType> = Vec::new();
-            for (j, j_val) in cols.iter().enumerate() {
-                match j_val {
-                    &"B" => {
-                        row_vec.push(SquareType::B);
-                        blank_squares_set.insert(Point { x: i, y: j });
-                    }
-                    &"O" => row_vec.push(SquareType::O),
-                    &"X" => row_vec.push(SquareType::X),
-                    _ => println!("Not a matching square type: {j}"),
-                };
-            }
-            col_vec.push(row_vec);
-        }
-
-        let mut temp_board =
-            TicTacToeBoard::new(col_vec, size, blank_squares_set, GameStatus::StillPlaying);
-        temp_board.update_status();
-        temp_board
-    }
-
-    pub fn initialize_blank_board(size: usize) -> TicTacToeBoard {
+    pub fn initialize_blank_board(size: usize) -> Board {
         let blank_array = vec![vec![SquareType::B; size]; size];
         let mut blank_squares_set: HashSet<Point> = HashSet::new();
         for i in 0..size {
@@ -250,7 +211,7 @@ impl TicTacToeBoard {
                 blank_squares_set.insert(Point { x: i, y: j });
             }
         }
-        TicTacToeBoard::new(
+        Board::new(
             blank_array,
             size,
             blank_squares_set,
@@ -260,12 +221,12 @@ impl TicTacToeBoard {
 
     pub fn run() {
         // This is the function to run the tic-tac-toe game.
-        let mut tic_tac_toe_board = TicTacToeBoard::initialize_blank_board(3);
+        let mut tic_tac_toe_board = Board::initialize_blank_board(3);
         let player = Player::X;
 
         while tic_tac_toe_board.game_status == GameStatus::StillPlaying {
             // Print board
-            println!("\n{}\n", tic_tac_toe_board);
+            println!("\n{tic_tac_toe_board}\n");
 
             // Get user input to know where to play a move.
             let mut player_move = String::new();
@@ -274,7 +235,6 @@ impl TicTacToeBoard {
                 .expect("Failed to read input");
             let user_input_as_usize = player_move
                 .split_whitespace()
-                .into_iter()
                 .map(|e| e.parse::<usize>().unwrap())
                 .collect::<Vec<usize>>();
             let user_move = Point {
@@ -284,16 +244,17 @@ impl TicTacToeBoard {
             tic_tac_toe_board.insert(&user_move, player.square_type());
 
             // Calculate where the opponent should move
-            let opponent_move = tic_tac_toe_board.minmax(player.other(), 0).player_move;
+            let opponent_move = tic_tac_toe_board.minmax(&player.other(), 0).player_move;
             tic_tac_toe_board.insert(&opponent_move, player.other().square_type());
         }
 
         // Print the final result of the game
-        println!("Final Board: \n{}\n", tic_tac_toe_board);
+        println!("Final Board: \n{tic_tac_toe_board}\n");
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
     }
 
-    pub fn minmax(&mut self, player: Player, depth: u32) -> MoveScorePair {
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn minmax(&mut self, player: &Player, depth: u32) -> MoveScorePair {
         // Create a vector to hold the pairs of played squares and the eventual result (assuming optimal play)
         let mut move_score_table: Vec<MoveScorePair> = Vec::new();
 
@@ -308,40 +269,36 @@ impl TicTacToeBoard {
                 player_move: Point { x: 0, y: 0 },
                 score: self.game_status,
             };
-        } else {
-            // Recursive case: if the code reaches here it means the game is not yet over
-            // println!("board in the recursive case:\n{}\n", self);
-
-            assert!(!self.blank_squares_set.is_empty());
-            for i in self.blank_squares_set.iter() {
-                // Play in the next blank square
-                let mut new_board = self.clone();
-                // println!("\n---\n");
-                // println!("depth: {}", depth);
-                // println!("board before insert: \n{}", new_board);
-                new_board.insert(i, player.square_type());
-                // println!("board after insert: \n{}", new_board);
-
-                // Update the selected move's 'player_move' field to reflect the new information
-                // gained
-                let mut selected_move = new_board.minmax(player.other(), depth + 1);
-                selected_move.player_move = *i;
-                // println!("selected_move: {}", selected_move);
-                move_score_table.push(selected_move);
-            }
-            // println!("move_score_table:");
-            move_score_table
-                .iter()
-                // .inspect(|e| println!("{}", e))
-                .for_each(|_| ());
-            TicTacToeBoard::select_score(&mut move_score_table, player)
         }
+        // Recursive case: if the code reaches here it means the game is not yet over
+        // println!("board in the recursive case:\n{}\n", self);
+
+        assert!(!self.blank_squares_set.is_empty());
+        for i in &self.blank_squares_set {
+            // Play in the next blank square
+            let mut new_board = self.clone();
+            // println!("\n---\n");
+            // println!("depth: {}", depth);
+            // println!("board before insert: \n{}", new_board);
+            new_board.insert(i, player.square_type());
+            // println!("board after insert: \n{}", new_board);
+
+            // Update the selected move's 'player_move' field to reflect the new information
+            // gained
+            let mut selected_move = new_board.minmax(&player.other(), depth + 1);
+            selected_move.player_move = *i;
+            // println!("selected_move: {}", selected_move);
+            move_score_table.push(selected_move);
+        }
+        // println!("move_score_table:");
+        move_score_table
+            .iter()
+            // .inspect(|e| println!("{}", e))
+            .for_each(|_| ());
+        Board::select_score(&mut move_score_table, player)
     }
 
-    pub fn select_score(
-        move_score_table: &mut Vec<MoveScorePair>,
-        player: Player,
-    ) -> MoveScorePair {
+    pub fn select_score(move_score_table: &mut [MoveScorePair], player: &Player) -> MoveScorePair {
         let desired_game_status = player.desired_game_status();
         let (desired_move_scores, other_move_scores): (Vec<MoveScorePair>, Vec<MoveScorePair>) =
             move_score_table.iter().partition(|e| {
@@ -368,18 +325,15 @@ impl TicTacToeBoard {
         // Return the first element of the new sorted iterator
         desired_move_scores
             .into_iter()
-            .chain(draw_move_scores.into_iter())
-            .chain(other_move_scores.into_iter())
+            .chain(draw_move_scores)
+            .chain(other_move_scores)
             .next()
             .unwrap()
     }
 
     pub fn update_status(&mut self) {
-        match self.game_status {
-            GameStatus::StillPlaying => {
-                self.game_status = self.check_status();
-            }
-            _ => (),
+        if GameStatus::StillPlaying == self.game_status {
+            self.game_status = self.check_status();
         }
     }
 
@@ -388,7 +342,7 @@ impl TicTacToeBoard {
             self.content[point.x][point.y] = value;
             self.update_status();
         } else {
-            println!("Not a valid insert position: {:?}", point);
+            println!("Not a valid insert position: {point:?}");
         }
     }
 
@@ -396,7 +350,7 @@ impl TicTacToeBoard {
         let all_lines_statuses = [self.check_rows(), self.check_cols(), self.check_diag()];
         all_lines_statuses
             .into_iter()
-            .reduce(|acc, e| GameStatus::combine(acc, e))
+            .reduce(GameStatus::combine)
             .unwrap()
     }
 
@@ -405,11 +359,11 @@ impl TicTacToeBoard {
             .iter()
             .map(|x| {
                 x.iter()
-                    .map(|y| PartialLineStatus::PartialLine(y))
+                    .map(PartialLineStatus::PartialLine)
                     .reduce(|acc, e| PartialLineStatus::combine(&acc, &e))
             })
             .map(|x| x.unwrap().upgrade())
-            .reduce(|acc, e| GameStatus::combine(acc, e))
+            .reduce(GameStatus::combine)
             .unwrap()
     }
 
@@ -419,7 +373,7 @@ impl TicTacToeBoard {
             .iter()
             .map(|x| {
                 x.iter()
-                    .map(|y| PartialLineStatus::PartialLine(y))
+                    .map(PartialLineStatus::PartialLine)
                     .collect::<Vec<PartialLineStatus>>()
             })
             .collect::<Vec<Vec<PartialLineStatus>>>();
@@ -435,16 +389,14 @@ impl TicTacToeBoard {
             })
             .unwrap();
 
-        let final_reduction = column_reduction
+        column_reduction
             .into_iter()
             // .inspect(|e| println!("column_reduction: {:?}", e))
             .map(|e| e.upgrade())
-            .reduce(|acc, e| GameStatus::combine(acc, e))
-            .unwrap();
+            .reduce(GameStatus::combine)
+            .unwrap()
 
         // println!("final_reduction: {:?}", final_reduction);
-
-        final_reduction
     }
 
     fn check_diag(&self) -> GameStatus {
@@ -459,7 +411,7 @@ impl TicTacToeBoard {
             // .inspect(|e| println!("{:?}", e))
             .map(|(i, e)| &e[i])
             // .inspect(|e| println!("{:?}", e))
-            .map(|x| PartialLineStatus::PartialLine(x))
+            .map(PartialLineStatus::PartialLine)
             .reduce(|acc, e| PartialLineStatus::combine(&acc, &e))
             .unwrap()
             .upgrade();
@@ -472,7 +424,7 @@ impl TicTacToeBoard {
             // .inspect(|e| println!("r_to_l_diag: {:?}", e))
             .map(|(i, e)| &e[i])
             // .inspect(|e| println!("r_to_l_diag: {:?}", e))
-            .map(|x| PartialLineStatus::PartialLine(x))
+            .map(PartialLineStatus::PartialLine)
             .reduce(|acc, e| PartialLineStatus::combine(&acc, &e))
             .unwrap()
             .upgrade();
@@ -485,9 +437,40 @@ impl TicTacToeBoard {
 mod tests {
     use super::*;
 
+    impl Board {
+        pub fn from_string(string: &str) -> Self {
+            let rows: Vec<&str> = string.split_terminator('|').collect();
+            let size = rows.len();
+            let mut cols;
+            let mut col_vec: Vec<Vec<SquareType>> = Vec::new();
+            let mut blank_squares_set = HashSet::new();
+            for (i, i_val) in rows.iter().enumerate() {
+                cols = i_val.split_whitespace().collect::<Vec<&str>>();
+                let mut row_vec: Vec<SquareType> = Vec::new();
+                for (j, j_val) in cols.iter().enumerate() {
+                    match *j_val {
+                        "B" => {
+                            row_vec.push(SquareType::B);
+                            blank_squares_set.insert(Point { x: i, y: j });
+                        }
+                        "O" => row_vec.push(SquareType::O),
+                        "X" => row_vec.push(SquareType::X),
+                        _ => println!("Not a matching square type: {j}"),
+                    };
+                }
+                col_vec.push(row_vec);
+            }
+
+            let mut temp_board =
+                Board::new(col_vec, size, blank_squares_set, GameStatus::StillPlaying);
+            temp_board.update_status();
+            temp_board
+        }
+    }
+
     #[test]
     fn row_x_win() {
-        let x_win_board = TicTacToeBoard::from_string(
+        let x_win_board = Board::from_string(
             "X X X |
              O O X |
              X O O",
@@ -497,7 +480,7 @@ mod tests {
 
     #[test]
     fn row_o_win() {
-        let o_win_board = TicTacToeBoard::from_string(
+        let o_win_board = Board::from_string(
             "O O O |
              X B X |
              X O X",
@@ -507,7 +490,7 @@ mod tests {
 
     #[test]
     fn row_still_playing() {
-        let still_playing_board = TicTacToeBoard::from_string(
+        let still_playing_board = Board::from_string(
             "X B X |
              O B X |
              X B O",
@@ -517,7 +500,7 @@ mod tests {
 
     #[test]
     fn row_draw() {
-        let draw_board = TicTacToeBoard::from_string(
+        let draw_board = Board::from_string(
             "X X O |
              O O X |
              X O X",
@@ -526,9 +509,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Two winners")]
     fn row_x_and_o_win() {
-        let x_and_o_win_board = TicTacToeBoard::from_string(
+        let x_and_o_win_board = Board::from_string(
             "X X X |
              O O O |
              X O X",
@@ -537,9 +520,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Two winners")]
     fn row_o_and_x_win() {
-        let o_and_x_win_board = TicTacToeBoard::from_string(
+        let o_and_x_win_board = Board::from_string(
             "O O O |
              X X X |
              X O X",
@@ -549,7 +532,7 @@ mod tests {
 
     #[test]
     fn row_draw_col_win() {
-        let col_win_board = TicTacToeBoard::from_string(
+        let col_win_board = Board::from_string(
             "X X O |
              X O O |
              X O X",
@@ -559,7 +542,7 @@ mod tests {
 
     #[test]
     fn col_x_win() {
-        let x_win_board = TicTacToeBoard::from_string(
+        let x_win_board = Board::from_string(
             "X X O |
              X O O |
              X O X",
@@ -569,7 +552,7 @@ mod tests {
 
     #[test]
     fn col_o_win() {
-        let o_win_board = TicTacToeBoard::from_string(
+        let o_win_board = Board::from_string(
             "O X X |
              O B O |
              O X X",
@@ -579,7 +562,7 @@ mod tests {
 
     #[test]
     fn col_draw() {
-        let draw_board = TicTacToeBoard::from_string(
+        let draw_board = Board::from_string(
             "X X O |
              O X X |
              X O O",
@@ -589,7 +572,7 @@ mod tests {
 
     #[test]
     fn col_still_playing() {
-        let still_playing_board = TicTacToeBoard::from_string(
+        let still_playing_board = Board::from_string(
             "X X O |
              B O O |
              X O X",
@@ -598,9 +581,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Two winners")]
     fn col_x_and_o_win() {
-        let x_and_o_win_board = TicTacToeBoard::from_string(
+        let x_and_o_win_board = Board::from_string(
             "X O O |
              X O X |
              X O X",
@@ -609,9 +592,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Two winners")]
     fn col_o_and_x_win() {
-        let o_and_x_win_board = TicTacToeBoard::from_string(
+        let o_and_x_win_board = Board::from_string(
             "O X O |
              O X X |
              O X X",
@@ -621,7 +604,7 @@ mod tests {
 
     #[test]
     fn col_draw_row_win() {
-        let x_win_board = TicTacToeBoard::from_string(
+        let x_win_board = Board::from_string(
             "X X X |
              O B O |
              X O X",
@@ -631,7 +614,7 @@ mod tests {
 
     #[test]
     fn diag_x_win() {
-        let x_win_board = TicTacToeBoard::from_string(
+        let x_win_board = Board::from_string(
             "X X O |
              O X O |
              X O X",
@@ -641,7 +624,7 @@ mod tests {
 
     #[test]
     fn diag_o_win() {
-        let o_win_board = TicTacToeBoard::from_string(
+        let o_win_board = Board::from_string(
             "X X O |
              O O X |
              O X X",
@@ -651,7 +634,7 @@ mod tests {
 
     #[test]
     fn diag_draw() {
-        let draw_board = TicTacToeBoard::from_string(
+        let draw_board = Board::from_string(
             "X X O |
              O O X |
              X O X",
@@ -661,7 +644,7 @@ mod tests {
 
     #[test]
     fn diag_still_playing() {
-        let still_playing_board = TicTacToeBoard::from_string(
+        let still_playing_board = Board::from_string(
             "X X O |
              O B O |
              X O X",
@@ -702,14 +685,14 @@ mod tests {
             },
         ];
 
-        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::X);
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
             MoveScorePair {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin
             }
-        )
+        );
     }
 
     #[test]
@@ -745,14 +728,14 @@ mod tests {
             },
         ];
 
-        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
             MoveScorePair {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin
             }
-        )
+        );
     }
 
     #[test]
@@ -788,14 +771,14 @@ mod tests {
             },
         ];
 
-        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
             MoveScorePair {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             }
-        )
+        );
     }
 
     #[test]
@@ -831,14 +814,14 @@ mod tests {
             },
         ];
 
-        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::X);
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
             MoveScorePair {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin
             }
-        )
+        );
     }
 
     #[test]
@@ -874,13 +857,13 @@ mod tests {
             },
         ];
 
-        let selected_score = TicTacToeBoard::select_score(&mut manual_move_score_table, Player::O);
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
             MoveScorePair {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin
             }
-        )
+        );
     }
 }
