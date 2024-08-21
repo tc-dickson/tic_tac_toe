@@ -292,6 +292,7 @@ impl TicTacToeBoard {
         println!("Final Board: \n{}\n", tic_tac_toe_board);
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
     }
+
     pub fn minmax(&mut self, player: Player, depth: u32) -> MoveScorePair {
         // Create a vector to hold the pairs of played squares and the eventual result (assuming optimal play)
         let mut move_score_table: Vec<MoveScorePair> = Vec::new();
