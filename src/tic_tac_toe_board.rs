@@ -1,163 +1,7 @@
+use crate::board_info::{Player, Point, SquareType};
+use crate::scoring::{GameStatus, MoveScoreDepth, PartialLineStatus};
 use std::collections::HashSet;
 use std::io;
-
-/// An enum that holds the possible states of the tic-tac-toe board
-/// The player plays with the X pieces and the opponent with the O pieces
-#[derive(Debug, Clone)]
-enum SquareType {
-    B, // Blank square
-    O, // Opponent's square
-    X, // Player's square
-}
-
-/// For `SquareType::B` render a space. For the others, render the corresponding letter
-impl std::fmt::Display for SquareType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::B => write!(f, " "),
-            Self::O => write!(f, "O"),
-            Self::X => write!(f, "X"),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum PartialLineStatus<'a> {
-    PartialLine(&'a SquareType),
-    PartialDraw,
-}
-
-impl<'a> PartialLineStatus<'a> {
-    fn combine(lhs: &Self, rhs: &Self) -> Self {
-        type S = SquareType;
-
-        match lhs {
-            Self::PartialLine(S::B) => match rhs {
-                Self::PartialLine(S::B | S::O | S::X) | Self::PartialDraw => {
-                    Self::PartialLine(&S::B)
-                }
-            },
-            Self::PartialLine(S::O) => match rhs {
-                Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O) => Self::PartialLine(&S::O),
-                Self::PartialLine(S::X) | Self::PartialDraw => Self::PartialDraw,
-            },
-            Self::PartialLine(S::X) => match rhs {
-                Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O) | Self::PartialDraw => Self::PartialDraw,
-                Self::PartialLine(S::X) => Self::PartialLine(&S::X),
-            },
-            Self::PartialDraw => match rhs {
-                Self::PartialLine(S::B) => Self::PartialLine(&S::B),
-                Self::PartialLine(S::O | S::X) | Self::PartialDraw => Self::PartialDraw,
-            },
-        }
-    }
-
-    fn upgrade(&self) -> GameStatus {
-        match self {
-            Self::PartialLine(SquareType::B) => GameStatus::StillPlaying,
-            Self::PartialLine(SquareType::O) => GameStatus::OWin,
-            Self::PartialLine(SquareType::X) => GameStatus::XWin,
-            Self::PartialDraw => GameStatus::Draw,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum GameStatus {
-    XWin,
-    OWin,
-    Draw,
-    StillPlaying,
-}
-
-impl std::fmt::Display for GameStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::XWin => write!(f, "XWin"),
-            Self::OWin => write!(f, "OWin"),
-            Self::Draw => write!(f, "Draw"),
-            Self::StillPlaying => write!(f, "StillPlaying"),
-        }
-    }
-}
-
-impl GameStatus {
-    fn combine(lhs: Self, rhs: Self) -> Self {
-        match lhs {
-            Self::XWin => match rhs {
-                Self::OWin => unimplemented!("Two winners"),
-                Self::Draw | Self::XWin | Self::StillPlaying => Self::XWin,
-            },
-            Self::OWin => match rhs {
-                Self::XWin => unimplemented!("Two winners"),
-                Self::OWin | Self::Draw | Self::StillPlaying => Self::OWin,
-            },
-            Self::Draw => match rhs {
-                Self::XWin => Self::XWin,
-                Self::OWin => Self::OWin,
-                Self::Draw => Self::Draw,
-                Self::StillPlaying => Self::StillPlaying,
-            },
-            Self::StillPlaying => match rhs {
-                Self::XWin => Self::XWin,
-                Self::OWin => Self::OWin,
-                Self::Draw | Self::StillPlaying => Self::StillPlaying,
-            },
-        }
-    }
-}
-
-enum Player {
-    X,
-    O,
-}
-
-impl Player {
-    fn other(&self) -> Player {
-        match self {
-            Player::O => Player::X,
-            Player::X => Player::O,
-        }
-    }
-
-    fn square_type(&self) -> SquareType {
-        match self {
-            Player::X => SquareType::X,
-            Player::O => SquareType::O,
-        }
-    }
-
-    fn desired_game_status(&self) -> GameStatus {
-        match self {
-            Player::X => GameStatus::XWin,
-            Player::O => GameStatus::OWin,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
-struct Point {
-    x: usize,
-    y: usize,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-struct MoveScoreDepth {
-    player_move: Point,
-    score: GameStatus,
-}
-
-impl std::fmt::Display for MoveScoreDepth {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "({}, {}):{}",
-            self.player_move.x, self.player_move.y, self.score
-        )
-    }
-}
 
 #[derive(Clone)]
 pub struct Board {
@@ -265,6 +109,7 @@ impl Board {
                 // The player_move field will get updated so this is just a placeholder value
                 player_move: Point { x: 0, y: 0 },
                 score: self.game_status,
+                depth,
             };
         }
 
@@ -287,61 +132,39 @@ impl Board {
         move_score_depth_table: &mut [MoveScoreDepth],
         player: &Player,
     ) -> MoveScoreDepth {
-        // A helper function only used within select_score
-        fn partition_to_front<F>(vec: Vec<MoveScoreDepth>, f: F) -> Vec<MoveScoreDepth>
-        where
-            F: FnMut(&MoveScoreDepth) -> bool,
-        {
-            let (mut first, last): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
-                vec.into_iter().partition(f);
-            first.extend(last);
-            first
-        }
-
         let desired_game_status = player.desired_game_status();
 
-        //let (desired_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
-        //    move_score_depth_table.iter().partition(|e| {
-        //        matches!(
-        //            e,
-        //            MoveScoreDepth {
-        //                player_move: _,
-        //                score: x,
-        //            } if *x == desired_game_status
-        //        )
-        //    });
-        //
-        //let (draw_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
-        //    other_move_scores.iter().partition(|e| {
-        //        matches!(
-        //            e,
-        //            MoveScoreDepth {
-        //                player_move: _,
-        //                score: x,
-        //            } if *x == GameStatus::Draw
-        //        )
-        //    });
+        let (desired_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
+            move_score_depth_table.iter().partition(|e| {
+                matches!(
+                    e,
+                    MoveScoreDepth {
+                        player_move: _,
+                        score: x,
+                        ..
+                    } if *x == desired_game_status
+                )
+            });
 
-        partition_to_front(move_score_depth_table.to_vec(), |e| {
-            // Check it the move in the move_score_depth_table is the desired outcome
-            // It doesn't matter what the player_move is
-            matches!(
-                e,
-                MoveScoreDepth {
-                    player_move: _,
-                    score: x,
-                } if *x == desired_game_status
-            )
-        });
-        
-        unimplemented!();
+        let (draw_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
+            other_move_scores.iter().partition(|e| {
+                matches!(
+                    e,
+                    MoveScoreDepth {
+                        player_move: _,
+                        score: x,
+                        ..
+                    } if *x == GameStatus::Draw
+                )
+            });
+
         // Return the first element of the new sorted iterator
-        //desired_move_scores
-        //    .into_iter()
-        //    .chain(draw_move_scores)
-        //    .chain(other_move_scores)
-        //    .next()
-        //    .unwrap()
+        desired_move_scores
+            .into_iter()
+            .chain(draw_move_scores)
+            .chain(other_move_scores)
+            .next()
+            .unwrap()
     }
 
     fn update_status(&mut self) {
@@ -665,30 +488,37 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
         ];
 
@@ -697,7 +527,8 @@ mod tests {
             selected_score,
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
-                score: GameStatus::XWin
+                score: GameStatus::XWin,
+                depth: 0,
             }
         );
     }
@@ -708,30 +539,37 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
         ];
 
@@ -740,7 +578,8 @@ mod tests {
             selected_score,
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
-                score: GameStatus::OWin
+                score: GameStatus::OWin,
+                depth: 0,
             }
         );
     }
@@ -751,30 +590,37 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
         ];
 
@@ -784,6 +630,7 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             }
         );
     }
@@ -794,30 +641,37 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
         ];
 
@@ -826,7 +680,8 @@ mod tests {
             selected_score,
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
-                score: GameStatus::XWin
+                score: GameStatus::XWin,
+                depth: 0,
             }
         );
     }
@@ -837,30 +692,37 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
             },
             MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
+                depth: 0,
             },
         ];
 
@@ -869,7 +731,8 @@ mod tests {
             selected_score,
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
-                score: GameStatus::OWin
+                score: GameStatus::OWin,
+                depth: 0,
             }
         );
     }
