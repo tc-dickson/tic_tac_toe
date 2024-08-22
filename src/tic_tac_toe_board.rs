@@ -121,11 +121,13 @@ impl Board {
             new_board.insert(i, player.square_type());
 
             // Update the selected move's 'player_move' field to reflect the new information
-            let mut selected_move = new_board.minmax(&player.other(), 0);
+            let mut selected_move = new_board.minmax(&player.other(), depth + 1);
             selected_move.player_move = *i;
             move_score_table.push(selected_move);
         }
-        Board::select_score(&mut move_score_table, player)
+       let test_var = Board::select_score(&mut move_score_table, player);
+       if test_var.depth <= 8 { println!("{test_var:?}") };
+       test_var
     }
 
     fn select_score(
@@ -714,6 +716,57 @@ mod tests {
             MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
+                depth: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn depth_test() {
+        let mut manual_move_score_table = vec![
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 1,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 0,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 2,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 3,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 4,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 5,
+            },
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
+                depth: 6,
+            },
+        ];
+
+        let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
+        assert_eq!(
+            selected_score,
+            MoveScoreDepth {
+                player_move: Point { x: 0, y: 0 },
+                score: GameStatus::XWin,
                 depth: 0,
             }
         );
