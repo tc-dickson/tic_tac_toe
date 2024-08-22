@@ -134,37 +134,19 @@ impl Board {
     ) -> MoveScoreDepth {
         let desired_game_status = player.desired_game_status();
 
-        let (desired_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
-            move_score_depth_table.iter().partition(|e| {
-                matches!(
-                    e,
-                    MoveScoreDepth {
-                        player_move: _,
-                        score: x,
-                        ..
-                    } if *x == desired_game_status
-                )
-            });
+        // Sort by score and then depth putting the `desired_game_status` and lowest depth first
+        match desired_game_status {
+            GameStatus::XWin => {
+                move_score_depth_table.sort_by_key(|e| (e.score, e.depth));
+            }
+            GameStatus::Draw => unimplemented!(),
+            GameStatus::StillPlaying => unimplemented!(),
+            GameStatus::OWin => {
+                move_score_depth_table.sort_by_key(|e| (std::cmp::Reverse(e.score), e.depth));
+            }
+        }
 
-        let (draw_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
-            other_move_scores.iter().partition(|e| {
-                matches!(
-                    e,
-                    MoveScoreDepth {
-                        player_move: _,
-                        score: x,
-                        ..
-                    } if *x == GameStatus::Draw
-                )
-            });
-
-        // Return the first element of the new sorted iterator
-        desired_move_scores
-            .into_iter()
-            .chain(draw_move_scores)
-            .chain(other_move_scores)
-            .next()
-            .unwrap()
+        *move_score_depth_table.first().unwrap()
     }
 
     fn update_status(&mut self) {
