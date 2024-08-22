@@ -1,13 +1,16 @@
 use std::collections::HashSet;
 use std::io;
 
+/// An enum that holds the possible states of the tic-tac-toe board
+/// The player plays with the X pieces and the opponent with the O pieces
 #[derive(Debug, Clone)]
-pub enum SquareType {
-    B,
-    O,
-    X,
+enum SquareType {
+    B, // Blank square
+    O, // Opponent's square
+    X, // Player's square
 }
 
+/// For `SquareType::B` render a space. For the others, render the corresponding letter
 impl std::fmt::Display for SquareType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -106,7 +109,7 @@ impl GameStatus {
     }
 }
 
-pub enum Player {
+enum Player {
     X,
     O,
 }
@@ -320,6 +323,8 @@ impl Board {
         //    });
 
         partition_to_front(move_score_depth_table.to_vec(), |e| {
+            // Check it the move in the move_score_depth_table is the desired outcome
+            // It doesn't matter what the player_move is
             matches!(
                 e,
                 MoveScoreDepth {
