@@ -135,18 +135,18 @@ impl Player {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
-pub struct Point {
-    pub x: usize,
-    pub y: usize,
+struct Point {
+    x: usize,
+    y: usize,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct MoveScorePair {
-    pub player_move: Point,
-    pub score: GameStatus,
+struct MoveScoreDepth {
+    player_move: Point,
+    score: GameStatus,
 }
 
-impl std::fmt::Display for MoveScorePair {
+impl std::fmt::Display for MoveScoreDepth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -158,10 +158,10 @@ impl std::fmt::Display for MoveScorePair {
 
 #[derive(Clone)]
 pub struct Board {
-    pub content: Vec<Vec<SquareType>>,
-    pub size: usize,
-    pub blank_squares_set: HashSet<Point>,
-    pub game_status: GameStatus,
+    content: Vec<Vec<SquareType>>,
+    size: usize,
+    blank_squares_set: HashSet<Point>,
+    game_status: GameStatus,
 }
 
 impl std::fmt::Display for Board {
@@ -176,7 +176,6 @@ impl std::fmt::Display for Board {
                     .as_slice()
                     .join("|")
             })
-            // .inspect(|e| println!("Display for Board: {:?}", e))
             .collect();
 
         let pass_length = self.size;
@@ -189,7 +188,7 @@ impl std::fmt::Display for Board {
 }
 
 impl Board {
-    pub fn new(
+    fn new(
         content: Vec<Vec<SquareType>>,
         size: usize,
         blank_squares_set: HashSet<Point>,
@@ -203,7 +202,7 @@ impl Board {
         }
     }
 
-    pub fn initialize_blank_board(size: usize) -> Board {
+    fn initialize_blank_board(size: usize) -> Board {
         let blank_array = vec![vec![SquareType::B; size]; size];
         let mut blank_squares_set: HashSet<Point> = HashSet::new();
         for i in 0..size {
@@ -253,91 +252,100 @@ impl Board {
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    pub fn minmax(&mut self, player: &Player, depth: u32) -> MoveScorePair {
+    fn minmax(&mut self, player: &Player, depth: u32) -> MoveScoreDepth {
         // Create a vector to hold the pairs of played squares and the eventual result (assuming optimal play)
-        let mut move_score_table: Vec<MoveScorePair> = Vec::new();
+        let mut move_score_table: Vec<MoveScoreDepth> = Vec::new();
 
         if self.game_status != GameStatus::StillPlaying {
             // Base case: if the code reaches here it means the game is over
-            //  println!("board in the base case:\n\n{}\n", self);
-            //  println!("game_status: {:?}", self.game_status);
-            //  println!("last_played_move: {:?}", last_played_move);
-
-            return MoveScorePair {
+            return MoveScoreDepth {
                 // The player_move field will get updated so this is just a placeholder value
                 player_move: Point { x: 0, y: 0 },
                 score: self.game_status,
             };
         }
-        // Recursive case: if the code reaches here it means the game is not yet over
-        // println!("board in the recursive case:\n{}\n", self);
 
+        // Recursive case: if the code reaches here it means the game is not yet over
         assert!(!self.blank_squares_set.is_empty());
         for i in &self.blank_squares_set {
             // Play in the next blank square
             let mut new_board = self.clone();
-            // println!("\n---\n");
-            // println!("depth: {}", depth);
-            // println!("board before insert: \n{}", new_board);
             new_board.insert(i, player.square_type());
-            // println!("board after insert: \n{}", new_board);
 
             // Update the selected move's 'player_move' field to reflect the new information
-            // gained
-            let mut selected_move = new_board.minmax(&player.other(), depth + 1);
+            let mut selected_move = new_board.minmax(&player.other(), 0);
             selected_move.player_move = *i;
-            // println!("selected_move: {}", selected_move);
             move_score_table.push(selected_move);
         }
-        // println!("move_score_table:");
-        move_score_table
-            .iter()
-            // .inspect(|e| println!("{}", e))
-            .for_each(|_| ());
         Board::select_score(&mut move_score_table, player)
     }
 
-    pub fn select_score(move_score_table: &mut [MoveScorePair], player: &Player) -> MoveScorePair {
+    fn select_score(
+        move_score_depth_table: &mut [MoveScoreDepth],
+        player: &Player,
+    ) -> MoveScoreDepth {
+        // A helper function only used within select_score
+        fn partition_to_front<F>(vec: Vec<MoveScoreDepth>, f: F) -> Vec<MoveScoreDepth>
+        where
+            F: FnMut(&MoveScoreDepth) -> bool,
+        {
+            let (mut first, last): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
+                vec.into_iter().partition(f);
+            first.extend(last);
+            first
+        }
+
         let desired_game_status = player.desired_game_status();
-        let (desired_move_scores, other_move_scores): (Vec<MoveScorePair>, Vec<MoveScorePair>) =
-            move_score_table.iter().partition(|e| {
-                matches!(
-                    e,
-                    MoveScorePair {
-                        player_move: _,
-                        score: x,
-                    } if *x == desired_game_status
-                )
-            });
 
-        let (draw_move_scores, other_move_scores): (Vec<MoveScorePair>, Vec<MoveScorePair>) =
-            other_move_scores.iter().partition(|e| {
-                matches!(
-                    e,
-                    MoveScorePair {
-                        player_move: _,
-                        score: x,
-                    } if *x == GameStatus::Draw
-                )
-            });
+        //let (desired_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
+        //    move_score_depth_table.iter().partition(|e| {
+        //        matches!(
+        //            e,
+        //            MoveScoreDepth {
+        //                player_move: _,
+        //                score: x,
+        //            } if *x == desired_game_status
+        //        )
+        //    });
+        //
+        //let (draw_move_scores, other_move_scores): (Vec<MoveScoreDepth>, Vec<MoveScoreDepth>) =
+        //    other_move_scores.iter().partition(|e| {
+        //        matches!(
+        //            e,
+        //            MoveScoreDepth {
+        //                player_move: _,
+        //                score: x,
+        //            } if *x == GameStatus::Draw
+        //        )
+        //    });
 
+        partition_to_front(move_score_depth_table.to_vec(), |e| {
+            matches!(
+                e,
+                MoveScoreDepth {
+                    player_move: _,
+                    score: x,
+                } if *x == desired_game_status
+            )
+        });
+        
+        unimplemented!();
         // Return the first element of the new sorted iterator
-        desired_move_scores
-            .into_iter()
-            .chain(draw_move_scores)
-            .chain(other_move_scores)
-            .next()
-            .unwrap()
+        //desired_move_scores
+        //    .into_iter()
+        //    .chain(draw_move_scores)
+        //    .chain(other_move_scores)
+        //    .next()
+        //    .unwrap()
     }
 
-    pub fn update_status(&mut self) {
+    fn update_status(&mut self) {
         if GameStatus::StillPlaying == self.game_status {
             self.game_status = self.check_status();
         }
     }
 
-    pub fn insert(&mut self, point: &Point, value: SquareType) {
+    fn insert(&mut self, point: &Point, value: SquareType) {
         if let Some(point) = self.blank_squares_set.take(point) {
             self.content[point.x][point.y] = value;
             self.update_status();
@@ -380,7 +388,6 @@ impl Board {
 
         let column_reduction = partial_line_board
             .into_iter()
-            // .inspect(|e| println!("partial_line_board: {:?}", e))
             .reduce(|acc, e| {
                 acc.iter()
                     .zip(e.iter())
@@ -391,7 +398,6 @@ impl Board {
 
         column_reduction
             .into_iter()
-            // .inspect(|e| println!("column_reduction: {:?}", e))
             .map(|e| e.upgrade())
             .reduce(GameStatus::combine)
             .unwrap()
@@ -408,9 +414,7 @@ impl Board {
             .content
             .iter()
             .enumerate()
-            // .inspect(|e| println!("{:?}", e))
             .map(|(i, e)| &e[i])
-            // .inspect(|e| println!("{:?}", e))
             .map(PartialLineStatus::PartialLine)
             .reduce(|acc, e| PartialLineStatus::combine(&acc, &e))
             .unwrap()
@@ -421,9 +425,7 @@ impl Board {
             .iter()
             .rev()
             .enumerate()
-            // .inspect(|e| println!("r_to_l_diag: {:?}", e))
             .map(|(i, e)| &e[i])
-            // .inspect(|e| println!("r_to_l_diag: {:?}", e))
             .map(PartialLineStatus::PartialLine)
             .reduce(|acc, e| PartialLineStatus::combine(&acc, &e))
             .unwrap()
@@ -438,7 +440,7 @@ mod tests {
     use super::*;
 
     impl Board {
-        pub fn from_string(string: &str) -> Self {
+        fn from_string(string: &str) -> Self {
             let rows: Vec<&str> = string.split_terminator('|').collect();
             let size = rows.len();
             let mut cols;
@@ -655,31 +657,31 @@ mod tests {
     #[test]
     fn select_score_1() {
         let mut manual_move_score_table = vec![
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
             },
@@ -688,7 +690,7 @@ mod tests {
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin
             }
@@ -698,31 +700,31 @@ mod tests {
     #[test]
     fn select_score_2() {
         let mut manual_move_score_table = vec![
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
             },
@@ -731,7 +733,7 @@ mod tests {
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin
             }
@@ -741,31 +743,31 @@ mod tests {
     #[test]
     fn select_score_3() {
         let mut manual_move_score_table = vec![
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
             },
@@ -774,7 +776,7 @@ mod tests {
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             }
@@ -784,31 +786,31 @@ mod tests {
     #[test]
     fn select_score_4() {
         let mut manual_move_score_table = vec![
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
             },
@@ -817,7 +819,7 @@ mod tests {
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin
             }
@@ -827,31 +829,31 @@ mod tests {
     #[test]
     fn select_score_5() {
         let mut manual_move_score_table = vec![
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
             },
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
             },
@@ -860,7 +862,7 @@ mod tests {
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScorePair {
+            MoveScoreDepth {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin
             }
