@@ -84,11 +84,11 @@ impl GameStatus {
     fn combine(lhs: Self, rhs: Self) -> Self {
         match lhs {
             Self::XWin => match rhs {
-                Self::OWin => todo!("Two winners"),
+                Self::OWin => unimplemented!("Two winners"),
                 Self::Draw | Self::XWin | Self::StillPlaying => Self::XWin,
             },
             Self::OWin => match rhs {
-                Self::XWin => todo!("Two winners"),
+                Self::XWin => unimplemented!("Two winners"),
                 Self::OWin | Self::Draw | Self::StillPlaying => Self::OWin,
             },
             Self::Draw => match rhs {
