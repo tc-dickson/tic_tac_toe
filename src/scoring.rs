@@ -43,12 +43,13 @@ impl<'a> PartialLineStatus<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum GameStatus {
-    XWin,
-    Draw,
-    StillPlaying,
     OWin,
+    Draw,
+    #[default]
+    StillPlaying,
+    XWin,
 }
 
 impl std::fmt::Display for GameStatus {
@@ -88,14 +89,38 @@ impl GameStatus {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct MoveScoreDepth {
-    pub player_move: Point,
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct MoveScoreTurns {
     pub score: GameStatus,
-    pub depth: u32,
+    pub turns_to_win: u32,
+    pub player_move: Point,
 }
 
-impl std::fmt::Display for MoveScoreDepth {
+impl Ord for MoveScoreTurns {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        type GS = GameStatus;
+        match (self.score, other.score) {
+            (GS::OWin, GS::OWin) => std::cmp::Ordering::reverse(self.turns_to_win.cmp(&other.turns_to_win)), // The higher turns to win should be less in this case
+            (GS::XWin, GS::XWin) => self.turns_to_win.cmp(&other.turns_to_win), // The higher turns to win should be greater in this case
+
+            (GS::Draw | GS::StillPlaying, GS::OWin)
+            | (GS::XWin, GS::Draw | GS::StillPlaying | GS::OWin) => std::cmp::Ordering::Greater,
+
+            (GS::Draw | GS::StillPlaying, GS::Draw | GS::StillPlaying) => std::cmp::Ordering::Equal,
+
+            (GS::OWin, GS::Draw | GS::StillPlaying | GS::XWin)
+            | (GS::Draw | GS::StillPlaying, GS::XWin) => std::cmp::Ordering::Less,
+        }
+    }
+}
+
+impl PartialOrd for MoveScoreTurns {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::fmt::Display for MoveScoreTurns {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -103,4 +128,18 @@ impl std::fmt::Display for MoveScoreDepth {
             self.player_move.x, self.player_move.y, self.score
         )
     }
+}
+
+impl MoveScoreTurns {
+    pub const MAX: Self = Self {
+        score: GameStatus::XWin,
+        player_move: Point { x: 0, y: 0 },
+        turns_to_win: 0,
+    };
+
+    pub const MIN: Self = Self {
+        score: GameStatus::OWin,
+        player_move: Point { x: 0, y: 0 },
+        turns_to_win: 0,
+    };
 }

@@ -1,5 +1,5 @@
 use crate::board_info::{Player, Point, SquareType};
-use crate::scoring::{GameStatus, MoveScoreDepth, PartialLineStatus};
+use crate::scoring::{GameStatus, MoveScoreTurns, PartialLineStatus};
 use std::collections::HashSet;
 use std::io;
 
@@ -90,7 +90,14 @@ impl Board {
             tic_tac_toe_board.insert(&user_move, player.square_type());
 
             // Calculate where the opponent should move
-            let opponent_move = tic_tac_toe_board.minmax(&player.other(), 0).player_move;
+            let opponent_move = tic_tac_toe_board
+                .alpha_beta(
+                    &player.other(),
+                    9,
+                    &MoveScoreTurns::MIN,
+                    &MoveScoreTurns::MAX,
+                )
+                .player_move;
             tic_tac_toe_board.insert(&opponent_move, player.other().square_type());
         }
 
@@ -99,56 +106,95 @@ impl Board {
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
     }
 
-    fn minmax(&mut self, player: &Player, depth: u32) -> MoveScoreDepth {
-        // Create a vector to hold the pairs of played squares and the eventual result (assuming optimal play)
-        let mut move_score_table: Vec<MoveScoreDepth> = Vec::new();
-
-        if self.game_status != GameStatus::StillPlaying {
-            // Base case: if the code reaches here it means the game is over
-            return MoveScoreDepth {
-                // The player_move field will get updated so this is just a placeholder value
-                player_move: Point { x: 0, y: 0 },
+    fn alpha_beta(
+        &mut self,
+        player: &Player,
+        depth: u32,
+        alpha: &MoveScoreTurns,
+        beta: &MoveScoreTurns,
+    ) -> MoveScoreTurns {
+        // Base case
+        if depth == 0 || self.game_status != GameStatus::StillPlaying {
+            return MoveScoreTurns {
                 score: self.game_status,
-                depth,
+                turns_to_win: depth,
+                player_move: Point{x: 12, y:12},
             };
         }
 
-        // Recursive case: if the code reaches here it means the game is not yet over
-        assert!(!self.blank_squares_set.is_empty());
-        for i in &self.blank_squares_set {
-            // Play in the next blank square
-            let mut new_board = self.clone();
-            new_board.insert(i, player.square_type());
+        match player {
+            Player::X => {
+                let mut value = MoveScoreTurns::MIN;
+                let mut new_alpha = alpha.clone();
+                let mut new_value;
+                for blank_square in self.blank_squares_set.clone() {
+                    let mut new_board = self.clone();
+                    new_board.insert(&blank_square, player.square_type());
+                    new_value = new_board.alpha_beta(
+                        &player.other(),
+                        depth - 1,
+                        &new_alpha,
+                        beta,
+                    );
+                    new_value.player_move = blank_square;
+                    println!("X: new_value: {new_value}");
+                    value = std::cmp::max(value.clone(), new_value.clone());
+                    if new_value > *beta {
+                        break;
+                    }
 
-            // Update the selected move's 'player_move' field to reflect the new information
-            let mut selected_move = new_board.minmax(&player.other(), depth + 1);
-            selected_move.player_move = *i;
-            move_score_table.push(selected_move);
+                    // _new_alpha = std::cmp::max(alpha.clone(), value.clone());
+                    new_alpha = std::cmp::max(value.clone(), new_alpha.clone());
+                }
+                value.clone()
+            }
+            Player::O => {
+                let mut value = MoveScoreTurns::MAX;
+                let mut new_beta = beta.clone();
+                let mut new_value;
+                for blank_square in self.blank_squares_set.clone() {
+                    let mut new_board = self.clone();
+                    new_board.insert(&blank_square, player.square_type());
+                    new_value = new_board.alpha_beta(
+                        &player.other(),
+                        depth - 1,
+                        alpha,
+                        &new_beta,
+                    );
+                    new_value.player_move = blank_square;
+                    println!("O: new_value: {new_value}");
+                    value = std::cmp::min(value.clone(), new_value.clone());
+                    if new_value < *alpha {
+                        break;
+                    }
+
+                    new_beta = std::cmp::min(value.clone(), new_beta.clone());
+                }
+                value.clone()
+            }
         }
-       let test_var = Board::select_score(&mut move_score_table, player);
-       if test_var.depth <= 8 { println!("{test_var:?}") };
-       test_var
     }
 
     fn select_score(
-        move_score_depth_table: &mut [MoveScoreDepth],
+        move_score_depth_table: &mut [MoveScoreTurns],
         player: &Player,
-    ) -> MoveScoreDepth {
+    ) -> MoveScoreTurns {
         let desired_game_status = player.desired_game_status();
 
         // Sort by score and then depth putting the `desired_game_status` and lowest depth first
         match desired_game_status {
             GameStatus::XWin => {
-                move_score_depth_table.sort_by_key(|e| (e.score, e.depth));
+                move_score_depth_table.sort_by_key(|e| (e.score, e.turns_to_win));
             }
             GameStatus::Draw => unimplemented!(),
             GameStatus::StillPlaying => unimplemented!(),
             GameStatus::OWin => {
-                move_score_depth_table.sort_by_key(|e| (std::cmp::Reverse(e.score), e.depth));
+                move_score_depth_table
+                    .sort_by_key(|e| (std::cmp::Reverse(e.score), e.turns_to_win));
             }
         }
 
-        *move_score_depth_table.first().unwrap()
+        move_score_depth_table.first().unwrap().clone()
     }
 
     fn update_status(&mut self) {
@@ -469,50 +515,50 @@ mod tests {
     #[test]
     fn select_score_1() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }
@@ -520,50 +566,50 @@ mod tests {
     #[test]
     fn select_score_2() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }
@@ -571,50 +617,50 @@ mod tests {
     #[test]
     fn select_score_3() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }
@@ -622,50 +668,50 @@ mod tests {
     #[test]
     fn select_score_4() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::X);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }
@@ -673,50 +719,50 @@ mod tests {
     #[test]
     fn select_score_5() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 2 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 1 },
                 score: GameStatus::Draw,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 2, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 1, y: 2 },
                 score: GameStatus::OWin,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }
@@ -724,50 +770,50 @@ mod tests {
     #[test]
     fn depth_test() {
         let mut manual_move_score_table = vec![
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 1,
+                turns_to_win: 1,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 2,
+                turns_to_win: 2,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 3,
+                turns_to_win: 3,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 4,
+                turns_to_win: 4,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 5,
+                turns_to_win: 5,
             },
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 6,
+                turns_to_win: 6,
             },
         ];
 
         let selected_score = Board::select_score(&mut manual_move_score_table, &Player::O);
         assert_eq!(
             selected_score,
-            MoveScoreDepth {
+            MoveScoreTurns {
                 player_move: Point { x: 0, y: 0 },
                 score: GameStatus::XWin,
-                depth: 0,
+                turns_to_win: 0,
             }
         );
     }

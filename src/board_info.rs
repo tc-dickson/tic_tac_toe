@@ -48,7 +48,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
