@@ -68,37 +68,43 @@ impl Board {
     pub fn run() {
         // This is the function to run the tic-tac-toe game.
         let mut tic_tac_toe_board = Board::initialize_blank_board(3);
-        let player = Player::X;
+        let mut current_player = Player::X;
 
         while tic_tac_toe_board.game_status == GameStatus::StillPlaying {
             // Print board
             println!("\n{tic_tac_toe_board}\n");
 
-            // Get user input to know where to play a move.
-            let mut player_move = String::new();
-            io::stdin()
-                .read_line(&mut player_move)
-                .expect("Failed to read input");
-            let user_input_as_usize = player_move
-                .split_whitespace()
-                .map(|e| e.parse::<usize>().unwrap())
-                .collect::<Vec<usize>>();
-            let user_move = Point {
-                x: user_input_as_usize[0],
-                y: user_input_as_usize[1],
-            };
-            tic_tac_toe_board.insert(&user_move, player.square_type());
-
-            // Calculate where the opponent should move
-            let opponent_move = tic_tac_toe_board
-                .alpha_beta(
-                    &player.other(),
-                    9,
-                    &MoveScoreTurns::MIN,
-                    &MoveScoreTurns::MAX,
-                )
-                .player_move;
-            tic_tac_toe_board.insert(&opponent_move, player.other().square_type());
+            match current_player {
+                Player::X => {
+                    // Get user input to know where to play a move.
+                    let mut player_move = String::new();
+                    io::stdin()
+                        .read_line(&mut player_move)
+                        .expect("Failed to read input");
+                    let user_input_as_usize = player_move
+                        .split_whitespace()
+                        .map(|e| e.parse::<usize>().unwrap())
+                        .collect::<Vec<usize>>();
+                    let user_move = Point {
+                        x: user_input_as_usize[0],
+                        y: user_input_as_usize[1],
+                    };
+                    tic_tac_toe_board.insert(&user_move, current_player.square_type());
+                }
+                Player::O => {
+                    // Calculate where the opponent should move
+                    let opponent_move = tic_tac_toe_board
+                        .alpha_beta(
+                            &current_player,
+                            9,
+                            &MoveScoreTurns::MIN,
+                            &MoveScoreTurns::MAX,
+                        )
+                        .player_move;
+                    tic_tac_toe_board.insert(&opponent_move, current_player.square_type());
+                } 
+            }
+            current_player = current_player.other();
         }
 
         // Print the final result of the game
