@@ -89,7 +89,7 @@ impl GameStatus {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MoveScoreTurns {
     pub score: GameStatus,
     pub turns_to_win: u32,
@@ -100,7 +100,9 @@ impl Ord for MoveScoreTurns {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         type GS = GameStatus;
         match (self.score, other.score) {
-            (GS::OWin, GS::OWin) => std::cmp::Ordering::reverse(self.turns_to_win.cmp(&other.turns_to_win)), // The higher turns to win should be less in this case
+            (GS::OWin, GS::OWin) => {
+                std::cmp::Ordering::reverse(self.turns_to_win.cmp(&other.turns_to_win))
+            } // The higher turns to win should be less in this case
             (GS::XWin, GS::XWin) => self.turns_to_win.cmp(&other.turns_to_win), // The higher turns to win should be greater in this case
 
             (GS::Draw | GS::StillPlaying, GS::OWin)

@@ -107,7 +107,7 @@ impl Board {
     }
 
     fn alpha_beta(
-        &mut self,
+        &self,
         player: &Player,
         depth: u32,
         alpha: &MoveScoreTurns,
@@ -118,59 +118,46 @@ impl Board {
             return MoveScoreTurns {
                 score: self.game_status,
                 turns_to_win: depth,
-                player_move: Point{x: 12, y:12},
+                player_move: Point { x: 0, y: 0 },
             };
         }
-
+        
         match player {
             Player::X => {
                 let mut value = MoveScoreTurns::MIN;
-                let mut new_alpha = alpha.clone();
+                let mut new_alpha = *alpha;
                 let mut new_value;
-                for blank_square in self.blank_squares_set.clone() {
+                for blank_square in &self.blank_squares_set {
                     let mut new_board = self.clone();
-                    new_board.insert(&blank_square, player.square_type());
-                    new_value = new_board.alpha_beta(
-                        &player.other(),
-                        depth - 1,
-                        &new_alpha,
-                        beta,
-                    );
-                    new_value.player_move = blank_square;
-                    println!("X: new_value: {new_value}");
-                    value = std::cmp::max(value.clone(), new_value.clone());
+                    new_board.insert(blank_square, player.square_type());
+                    new_value = new_board.alpha_beta(&player.other(), depth - 1, &new_alpha, beta);
+                    new_value.player_move = *blank_square;
+                    value = std::cmp::max(value, new_value);
                     if new_value > *beta {
                         break;
                     }
-
                     // _new_alpha = std::cmp::max(alpha.clone(), value.clone());
-                    new_alpha = std::cmp::max(value.clone(), new_alpha.clone());
+                    new_alpha = std::cmp::max(value, new_alpha);
                 }
-                value.clone()
+                value
             }
             Player::O => {
                 let mut value = MoveScoreTurns::MAX;
-                let mut new_beta = beta.clone();
+                let mut new_beta = *beta;
                 let mut new_value;
-                for blank_square in self.blank_squares_set.clone() {
+                for blank_square in &self.blank_squares_set {
                     let mut new_board = self.clone();
-                    new_board.insert(&blank_square, player.square_type());
-                    new_value = new_board.alpha_beta(
-                        &player.other(),
-                        depth - 1,
-                        alpha,
-                        &new_beta,
-                    );
-                    new_value.player_move = blank_square;
-                    println!("O: new_value: {new_value}");
-                    value = std::cmp::min(value.clone(), new_value.clone());
+                    new_board.insert(blank_square, player.square_type());
+                    new_value = new_board.alpha_beta(&player.other(), depth - 1, alpha, &new_beta);
+                    new_value.player_move = *blank_square;
+                    value = std::cmp::min(value, new_value);
                     if new_value < *alpha {
                         break;
                     }
 
-                    new_beta = std::cmp::min(value.clone(), new_beta.clone());
+                    new_beta = std::cmp::min(value, new_beta);
                 }
-                value.clone()
+                value
             }
         }
     }
