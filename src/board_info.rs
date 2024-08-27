@@ -39,13 +39,6 @@ impl Player {
             Player::O => SquareType::O,
         }
     }
-
-    pub fn desired_game_status(&self) -> GameStatus {
-        match self {
-            Player::X => GameStatus::XWin,
-            Player::O => GameStatus::OWin,
-        }
-    }
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
