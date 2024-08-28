@@ -3,14 +3,73 @@ use crate::scoring::{GameStatus, MoveScoreTurns, PartialLineStatus};
 use std::collections::HashSet;
 use std::io;
 
+// Contains the errors that can occur when playing the game
+#[derive(Debug)]
+enum BoardErr {
+    Io(std::io::Error),
+    Parse(std::num::ParseIntError),
+    NumInputArgs(String),
+    Move(String),
+}
+
+impl std::fmt::Display for BoardErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoardErr::Io(e) => write!(f, "{e}"),
+            BoardErr::Parse(e) => write!(f, "{e}"),
+            BoardErr::NumInputArgs(e) | BoardErr::Move(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl From<std::io::Error> for BoardErr {
+    fn from(value: std::io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
+impl From<std::num::ParseIntError> for BoardErr {
+    fn from(value: std::num::ParseIntError) -> Self {
+        Self::Parse(value)
+    }
+}
+
+impl std::error::Error for BoardErr {}
+
+/// A newtype wrapper to allow for custom `Display` of `Board.blank_squares_set`
+#[derive(Clone, Debug)]
+pub struct PointCollection(HashSet<Point>);
+
+impl std::fmt::Display for PointCollection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        //f.debug_set().entries(self.0.iter()).finish()
+        let string_to_print = self
+            .0
+            .iter()
+            .map(|point| format!("{point}"))
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "{string_to_print}")
+    }
+}
+
+impl From<HashSet<Point>> for PointCollection {
+    fn from(value: HashSet<Point>) -> Self {
+        Self(value)
+    }
+}
+
+/// This is the core of the entire program and contains all the data and functions needed to play a
+/// game of tic-tac-toe.
 #[derive(Clone)]
 pub struct Board {
     content: Vec<Vec<SquareType>>,
     size: usize,
-    blank_squares_set: HashSet<Point>,
+    blank_squares_set: PointCollection,
     game_status: GameStatus,
 }
 
+// This creates the classic *hashtag* board
 impl std::fmt::Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let first_pass: Vec<String> = self
@@ -38,7 +97,7 @@ impl Board {
     fn new(
         content: Vec<Vec<SquareType>>,
         size: usize,
-        blank_squares_set: HashSet<Point>,
+        blank_squares_set: PointCollection,
         game_status: GameStatus,
     ) -> Self {
         Self {
@@ -51,10 +110,10 @@ impl Board {
 
     fn initialize_blank_board(size: usize) -> Board {
         let blank_array = vec![vec![SquareType::B; size]; size];
-        let mut blank_squares_set: HashSet<Point> = HashSet::new();
+        let mut blank_squares_set: PointCollection = HashSet::new().into();
         for i in 0..size {
             for j in 0..size {
-                blank_squares_set.insert(Point { x: i, y: j });
+                blank_squares_set.0.insert(Point { x: i, y: j });
             }
         }
         Board::new(
@@ -65,9 +124,50 @@ impl Board {
         )
     }
 
+    /// This is the function to run the tic-tac-toe game.
+    ///
+    /// It consists of the player alternating turns with the ai opponent. The player moves by
+    /// typing two integer coordinates on the board separated by a space. If the player inputs
+    /// invlaid information, they will receive an error message. Invalid input includes data that
+    /// can't be read (this should rarely--if ever--happen), input that is more or less than two
+    /// strings separated by a space, non-numeric input, and numeric input that is out of bounds or
+    /// in an already played location. The game ends when either opponent wins or when the board is
+    /// filled (i.e. a draw).
+    ///
     pub fn run() {
-        // This is the function to run the tic-tac-toe game.
-        let mut tic_tac_toe_board = Board::initialize_blank_board(3);
+        const BOARD_SIZE: usize = 3;
+
+        fn get_user_move() -> Result<Point, BoardErr> {
+            let mut player_move = String::new();
+            io::stdin().read_line(&mut player_move)?;
+            let user_input_as_usize = player_move
+                .split_whitespace()
+                .map(str::parse)
+                .collect::<Result<Vec<usize>, _>>()?;
+
+            if user_input_as_usize.len() == Point::NUM_ARGUMENTS {
+                Ok(Point {
+                    x: user_input_as_usize[0],
+                    y: user_input_as_usize[1],
+                })
+            } else {
+                Err(BoardErr::NumInputArgs(format!(
+                    "Incorrect number of input arguments. Got {}, Expected {}",
+                    user_input_as_usize.len(),
+                    Point::NUM_ARGUMENTS
+                )))
+            }
+        }
+
+        fn try_move(board: &mut Board, player: &Player) -> Result<(), BoardErr> {
+            let user_move = get_user_move()?;
+            board
+                .insert(&user_move, player.square_type())
+                .map_err(BoardErr::Move)?;
+            Ok(())
+        }
+
+        let mut tic_tac_toe_board = Board::initialize_blank_board(BOARD_SIZE);
         let mut current_player = Player::X;
 
         while tic_tac_toe_board.game_status == GameStatus::StillPlaying {
@@ -76,20 +176,11 @@ impl Board {
 
             match current_player {
                 Player::X => {
-                    // Get user input to know where to play a move.
-                    let mut player_move = String::new();
-                    io::stdin()
-                        .read_line(&mut player_move)
-                        .expect("Failed to read input");
-                    let user_input_as_usize = player_move
-                        .split_whitespace()
-                        .map(|e| e.parse::<usize>().unwrap())
-                        .collect::<Vec<usize>>();
-                    let user_move = Point {
-                        x: user_input_as_usize[0],
-                        y: user_input_as_usize[1],
-                    };
-                    tic_tac_toe_board.insert(&user_move, current_player.square_type());
+                    //let mut attempt_move = try_move(&mut tic_tac_toe_board, &current_player);
+                    while let Err(e) = try_move(&mut tic_tac_toe_board, &current_player) {
+                        println! {"{e}"};
+                        //attempt_move = try_move(&mut tic_tac_toe_board, &current_player);
+                    }
                 }
                 Player::O => {
                     // Calculate where the opponent should move
@@ -101,8 +192,10 @@ impl Board {
                             &MoveScoreTurns::MAX,
                         )
                         .player_move;
-                    tic_tac_toe_board.insert(&opponent_move, current_player.square_type());
-                } 
+                    tic_tac_toe_board
+                        .insert(&opponent_move, current_player.square_type())
+                        .expect("alpha_beta() should not choose an invalid insert position");
+                }
             }
             current_player = current_player.other();
         }
@@ -112,6 +205,10 @@ impl Board {
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
     }
 
+    // This is an implementation of a depth-limited minmax algorithm with alpha-beta pruning
+    // [Wikipedia][1] has a good explanation of the algorithm
+    //
+    // [1]: https://en.wikipedia.org/wiki/Alpha-beta_pruning
     fn alpha_beta(
         &self,
         player: &Player,
@@ -124,41 +221,56 @@ impl Board {
             return MoveScoreTurns {
                 score: self.game_status,
                 turns_to_win: depth,
-                player_move: Point { x: 0, y: 0 },
+                ..Default::default() // Point is immediately overwritten, so initialize it with
+                                     // something convenient
             };
         }
 
+        // Recursive case
         match player {
+            // Maximizing player
             Player::X => {
+                // Initialize values
                 let mut value = MoveScoreTurns::MIN;
                 let mut new_alpha = *alpha;
-                let mut new_value;
-                for blank_square in &self.blank_squares_set {
+                let mut new_value; // This value is outside the loop due to lifetime considerations
+
+                for blank_square in &self.blank_squares_set.0 {
+                    // Create a copy of the board to explore potential moves and their outcomes
                     let mut new_board = self.clone();
-                    new_board.insert(blank_square, player.square_type());
+                    let _ = new_board.insert(blank_square, player.square_type());
                     new_value = new_board.alpha_beta(&player.other(), depth - 1, &new_alpha, beta);
-                    new_value.player_move = *blank_square;
+                    new_value.player_move = *blank_square; // Overwrite the returned board.player_move value
+                                                           // to the move that was most recently played.
+                                                           // This associates the correct return value with the correct move.
+
                     value = std::cmp::max(value, new_value);
                     if new_value > *beta {
-                        break;
+                        break; // This is where the pruning takes place
                     }
-                    // _new_alpha = std::cmp::max(alpha.clone(), value.clone());
                     new_alpha = std::cmp::max(value, new_alpha);
                 }
                 value
             }
+            // Minimizing Player
             Player::O => {
+                // Initialize values
                 let mut value = MoveScoreTurns::MAX;
                 let mut new_beta = *beta;
-                let mut new_value;
-                for blank_square in &self.blank_squares_set {
+                let mut new_value; // This value is outside the loop due to lifetime considerations
+
+                for blank_square in &self.blank_squares_set.0 {
+                    // Create a copy of the board to explore potential moves and their outcomes
                     let mut new_board = self.clone();
-                    new_board.insert(blank_square, player.square_type());
+                    let _ = new_board.insert(blank_square, player.square_type());
                     new_value = new_board.alpha_beta(&player.other(), depth - 1, alpha, &new_beta);
-                    new_value.player_move = *blank_square;
+                    new_value.player_move = *blank_square; // Overwrite the returned board.player_move value
+                                                           // to the move that was most recently played.
+                                                           // This associates the correct return value with the correct move.
+
                     value = std::cmp::min(value, new_value);
                     if new_value < *alpha {
-                        break;
+                        break; // This is where the pruning takes place
                     }
 
                     new_beta = std::cmp::min(value, new_beta);
@@ -174,15 +286,23 @@ impl Board {
         }
     }
 
-    fn insert(&mut self, point: &Point, value: SquareType) {
-        if let Some(point) = self.blank_squares_set.take(point) {
+    // Adds a new `SquareType` to the `Board` and removes the corresponding value from the `blank_squares_set`
+    fn insert(&mut self, point: &Point, value: SquareType) -> Result<(), String> {
+        if let Some(point) = self.blank_squares_set.0.take(point) {
             self.content[point.x][point.y] = value;
             self.update_status();
+            Ok(())
         } else {
-            println!("Not a valid insert position: {point:?}");
+            Err(format!(
+                "Not a valid insert position: {point}. Valid positions are {}",
+                self.blank_squares_set
+            ))
         }
     }
 
+    // In order for a game of tic-tac-toe to be won, a player needs to have marks in either an
+    // entire horizontal row, an entire vertical column, or an entire diagonal. This implementation
+    // does this checking in three parts and combines the results of the partial checks.
     fn check_status(&self) -> GameStatus {
         let all_lines_statuses = [self.check_rows(), self.check_cols(), self.check_diag()];
         all_lines_statuses
@@ -191,6 +311,9 @@ impl Board {
             .unwrap()
     }
 
+    // Check each individual row if there is a either a win condition, a draw, or if it is
+    // incomplete. The main functionality happens due to how the `SquareType`s combine together in
+    // the first `reduce`, and how the fully checked lines then combine in the second `reduce`.
     fn check_rows(&self) -> GameStatus {
         self.content
             .iter()
@@ -204,6 +327,8 @@ impl Board {
             .unwrap()
     }
 
+    // Operates in a similar manner to `check_rows()` but with additional set-up code to get the
+    // right `SquareType`s to easily `reduce`
     fn check_cols(&self) -> GameStatus {
         let partial_line_board = self
             .content
@@ -234,6 +359,8 @@ impl Board {
         // println!("final_reduction: {:?}", final_reduction);
     }
 
+    // Operates in a similar manner to `check_rows()` but with additional set-up code to get the
+    // right `SquareType`s to easily `reduce`
     fn check_diag(&self) -> GameStatus {
         if self.content.len() != self.content[0].len() {
             todo!("Not a square board");
@@ -268,13 +395,17 @@ impl Board {
 mod tests {
     use super::*;
 
+    /// Used to easily initialize tic-tac-toe boards for testing purposes.
+    /// Values within a row are separated by a space. Each row is separated 
+    /// by a space and a vertical bar ('|') character.
+
     impl Board {
         fn from_string(string: &str) -> Self {
             let rows: Vec<&str> = string.split_terminator('|').collect();
             let size = rows.len();
             let mut cols;
             let mut col_vec: Vec<Vec<SquareType>> = Vec::new();
-            let mut blank_squares_set = HashSet::new();
+            let mut blank_squares_set: PointCollection = HashSet::new().into();
             for (i, i_val) in rows.iter().enumerate() {
                 cols = i_val.split_whitespace().collect::<Vec<&str>>();
                 let mut row_vec: Vec<SquareType> = Vec::new();
@@ -282,7 +413,7 @@ mod tests {
                     match *j_val {
                         "B" => {
                             row_vec.push(SquareType::B);
-                            blank_squares_set.insert(Point { x: i, y: j });
+                            blank_squares_set.0.insert(Point { x: i, y: j });
                         }
                         "O" => row_vec.push(SquareType::O),
                         "X" => row_vec.push(SquareType::X),

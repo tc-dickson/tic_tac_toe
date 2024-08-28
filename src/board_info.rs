@@ -1,5 +1,3 @@
-use crate::scoring::GameStatus;
-
 /// An enum that holds the possible states of the tic-tac-toe board
 /// The player plays with the X pieces and the opponent with the O pieces
 #[derive(Debug, Clone)]
@@ -45,4 +43,14 @@ impl Player {
 pub struct Point {
     pub x: usize,
     pub y: usize,
+}
+
+impl std::fmt::Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+impl Point {
+    pub const NUM_ARGUMENTS: usize = 2;
 }
