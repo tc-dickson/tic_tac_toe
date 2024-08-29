@@ -3,5 +3,6 @@ name = "tic_tac_toe"
 version = "1.0.0"
 edition = "2021"
 description = "A simple tic-tac-toe game against a computer opponent"
+repository = "https://github.com/tc-dickson/tic_tac_toe"
 
 [dependencies]
