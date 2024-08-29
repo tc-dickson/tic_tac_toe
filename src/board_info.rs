@@ -18,6 +18,21 @@ impl std::fmt::Display for SquareType {
     }
 }
 
+/// This helps with configuring the user's preference for moving first/second and playing
+/// with X/O pieces
+pub enum Opponent {
+    User,
+    Computer,
+}
+
+impl Opponent {
+    pub fn other(&self) -> Opponent {
+        match self {
+            Opponent::User => Opponent::Computer,
+            Opponent::Computer => Opponent::User,
+        }
+    }
+}
 pub enum Player {
     X,
     O,

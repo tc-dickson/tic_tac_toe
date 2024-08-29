@@ -1,4 +1,5 @@
-use crate::board_info::{Player, Point, SquareType};
+use crate::board_info::{Opponent, Player, Point, SquareType};
+use crate::config::{Config, MoveFirst, PlayerIsX};
 use crate::scoring::{GameStatus, MoveScoreTurns, PartialLineStatus};
 use std::collections::HashSet;
 use std::io;
@@ -93,7 +94,34 @@ impl std::fmt::Display for Board {
     }
 }
 
+#[rustfmt::skip]
 impl Board {
+    const INTRO_MESSAGE: &'static str =
+        "\nWelcome to Tic-Tac-Toe!\
+         \n-----------------------\n\
+         \n\
+         Play by entering the coordinates of the square you want to play in.\n\
+         Coordinates are entered as two numbers separated by a space (e.g., \"0 1\").\n\
+         The square coordinates are as follows:\n\
+         \n     0   1   2 \
+         \n 0    |   |    \
+         \n   ----------- \
+         \n 1    |   |    \
+         \n   ----------- \
+         \n 2    |   |    \n\
+         \n\
+         ##################################################\n";
+
+    const OUTRO_MESSAGE: &'static str =
+        "\n##################################################\n\
+         \
+         \nThanks for playing!\
+         \n-------------------\n";
+}
+
+impl Board {
+    const BOARD_SIZE: usize = 3;
+
     fn new(
         content: Vec<Vec<SquareType>>,
         size: usize,
@@ -133,67 +161,49 @@ impl Board {
     /// strings separated by a space, non-numeric input, and numeric input that is out of bounds or
     /// in an already played location. The game ends when either opponent wins or when the board is
     /// filled (i.e. a draw).
-    ///
-    pub fn run() {
-        const BOARD_SIZE: usize = 3;
+    pub fn run(config: &Config) {
+        // Configure if the user or computer goes first
+        let mut current_player = match config.first_or_second {
+            MoveFirst(true) => Opponent::User,
+            MoveFirst(false) => Opponent::Computer,
+        };
 
-        fn get_user_move() -> Result<Point, BoardErr> {
-            let mut player_move = String::new();
-            io::stdin().read_line(&mut player_move)?;
-            let user_input_as_usize = player_move
-                .split_whitespace()
-                .map(str::parse)
-                .collect::<Result<Vec<usize>, _>>()?;
+        // Configure if the user or computer is playing with the X (or O) pieces
+        let player_piece_type = match config.player_piece_type {
+            PlayerIsX(true) => Player::X,
+            PlayerIsX(false) => Player::O,
+        };
 
-            if user_input_as_usize.len() == Point::NUM_ARGUMENTS {
-                Ok(Point {
-                    x: user_input_as_usize[0],
-                    y: user_input_as_usize[1],
-                })
-            } else {
-                Err(BoardErr::NumInputArgs(format!(
-                    "Incorrect number of input arguments. Got {}, Expected {}",
-                    user_input_as_usize.len(),
-                    Point::NUM_ARGUMENTS
-                )))
-            }
-        }
+        // Print intro message
+        println!("{}", Self::INTRO_MESSAGE);
 
-        fn try_move(board: &mut Board, player: &Player) -> Result<(), BoardErr> {
-            let user_move = get_user_move()?;
-            board
-                .insert(&user_move, player.square_type())
-                .map_err(BoardErr::Move)?;
-            Ok(())
-        }
-
-        let mut tic_tac_toe_board = Board::initialize_blank_board(BOARD_SIZE);
-        let mut current_player = Player::X;
-
+        let mut tic_tac_toe_board = Board::initialize_blank_board(Self::BOARD_SIZE);
+        println!("Initial board:");
         while tic_tac_toe_board.game_status == GameStatus::StillPlaying {
             // Print board
             println!("\n{tic_tac_toe_board}\n");
 
             match current_player {
-                Player::X => {
-                    //let mut attempt_move = try_move(&mut tic_tac_toe_board, &current_player);
-                    while let Err(e) = try_move(&mut tic_tac_toe_board, &current_player) {
+                Opponent::User => {
+                    println!("Your move: ");
+                    while let Err(e) = Board::try_move(&mut tic_tac_toe_board, &player_piece_type) {
                         println! {"{e}"};
-                        //attempt_move = try_move(&mut tic_tac_toe_board, &current_player);
                     }
                 }
-                Player::O => {
+                Opponent::Computer => {
                     // Calculate where the opponent should move
                     let opponent_move = tic_tac_toe_board
                         .alpha_beta(
-                            &current_player,
+                            &player_piece_type.other(),
                             9,
                             &MoveScoreTurns::MIN,
                             &MoveScoreTurns::MAX,
                         )
                         .player_move;
+
+                    println!("Opponent's move:\n{} {}", opponent_move.x, opponent_move.y);
                     tic_tac_toe_board
-                        .insert(&opponent_move, current_player.square_type())
+                        .insert(&opponent_move, player_piece_type.other().square_type())
                         .expect("alpha_beta() should not choose an invalid insert position");
                 }
             }
@@ -201,8 +211,39 @@ impl Board {
         }
 
         // Print the final result of the game
-        println!("Final Board: \n{tic_tac_toe_board}\n");
+        println!("\nFinal Board: \n{tic_tac_toe_board}\n");
         println!("Final Status: {:?}", tic_tac_toe_board.game_status);
+        println!("{}", Self::OUTRO_MESSAGE);
+    }
+
+    fn get_user_move() -> Result<Point, BoardErr> {
+        let mut player_move = String::new();
+        io::stdin().read_line(&mut player_move)?;
+        let user_input_as_usize = player_move
+            .split_whitespace()
+            .map(str::parse)
+            .collect::<Result<Vec<usize>, _>>()?;
+
+        if user_input_as_usize.len() == Point::NUM_ARGUMENTS {
+            Ok(Point {
+                x: user_input_as_usize[0],
+                y: user_input_as_usize[1],
+            })
+        } else {
+            Err(BoardErr::NumInputArgs(format!(
+                "Incorrect number of input arguments. Got {}, Expected {}",
+                user_input_as_usize.len(),
+                Point::NUM_ARGUMENTS
+            )))
+        }
+    }
+
+    fn try_move(board: &mut Board, player: &Player) -> Result<(), BoardErr> {
+        let user_move = Board::get_user_move()?;
+        board
+            .insert(&user_move, player.square_type())
+            .map_err(BoardErr::Move)?;
+        Ok(())
     }
 
     // This is an implementation of a depth-limited minmax algorithm with alpha-beta pruning
@@ -396,7 +437,7 @@ mod tests {
     use super::*;
 
     /// Used to easily initialize tic-tac-toe boards for testing purposes.
-    /// Values within a row are separated by a space. Each row is separated 
+    /// Values within a row are separated by a space. Each row is separated
     /// by a space and a vertical bar ('|') character.
 
     impl Board {
