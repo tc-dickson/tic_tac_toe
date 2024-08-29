@@ -121,6 +121,7 @@ impl Board {
 
 impl Board {
     const BOARD_SIZE: usize = 3;
+    pub const EMPTY_BOARD_BLANK_SQUARES_REMAINING: u32 = 9;
 
     fn new(
         content: Vec<Vec<SquareType>>,
@@ -261,7 +262,7 @@ impl Board {
         if depth == 0 || self.game_status != GameStatus::StillPlaying {
             return MoveScoreTurns {
                 score: self.game_status,
-                turns_to_win: depth,
+                blank_squares_remaining: depth,
                 ..Default::default() // Point is immediately overwritten, so initialize it with
                                      // something convenient
             };

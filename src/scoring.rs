@@ -1,5 +1,8 @@
 use crate::board_info::{Point, SquareType};
+use crate::tic_tac_toe_board::Board;
 
+/// `PartialLineStatus` is used in scoring a particular line (i.e., row, column, or diagonal)
+/// of the tic-tac-toe board. All of the lines of the board combined give the total `GameStatus`.
 #[derive(Debug)]
 pub enum PartialLineStatus<'a> {
     PartialLine(&'a SquareType),
@@ -7,6 +10,14 @@ pub enum PartialLineStatus<'a> {
 }
 
 impl<'a> PartialLineStatus<'a> {
+    /// A win is detected when three of the same `SquareType` (except for `SquareType::B`) are in a
+    /// line. If both players play in a given line then the only possible information this line can
+    /// give is that the `GameStatus` is either a `Draw` (i.e., `PartialDraw`) or `StillPlaying`
+    /// (i.e., `PartialLine(SquareType::B)`). If the line is filled (i.e., no blank squares) then the
+    /// `PartialLineStatus` is `PartialDraw`. Otherwise, if there are blank squares in the line the
+    /// `PartialLineStatus` is `PartialLine(SquareType::B)`
+    ///
+    /// `PartialLineStatus::combine()` is intended to be used within a `reduce` method of an iterator.
     pub fn combine(lhs: &Self, rhs: &Self) -> Self {
         type S = SquareType;
 
@@ -33,6 +44,9 @@ impl<'a> PartialLineStatus<'a> {
         }
     }
 
+    /// The statuses of each of the lines are upgraded and then combined in `GameStatus::combine()`.
+    /// The logic of combination for `GameStatus::combine()` is slightly different than for
+    /// `PartialLineStatus::combine()` hence the need to convert from one to the other.
     pub fn upgrade(&self) -> GameStatus {
         match self {
             Self::PartialLine(SquareType::B) => GameStatus::StillPlaying,
@@ -43,6 +57,8 @@ impl<'a> PartialLineStatus<'a> {
     }
 }
 
+/// `GameStatus` is used in scoring the tic-tac-toe board in its entirety. All of the lines of
+/// the board combined give the total `GameStatus`.
 #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum GameStatus {
     OWin,
@@ -64,6 +80,13 @@ impl std::fmt::Display for GameStatus {
 }
 
 impl GameStatus {
+    /// A win is detected when any of the individual line scores is a win (e.g.,
+    /// `PartialLineStatus::upgrade()` returns `GameStatus::OWin` or `GameStatus::XWin`. If this is not
+    /// the case then if any `upgrade`d line is `GameStatus::StillPlaying` then this is the overall
+    /// result. If all of the `upgrade`d lines are `GameStatus::Draw` then the overall result is
+    /// `GameStatus::Draw`.
+    ///
+    /// `GameStatus::combine()` is intended to be used within a `reduce` method of an iterator.
     pub fn combine(lhs: Self, rhs: Self) -> Self {
         match lhs {
             Self::XWin => match rhs {
@@ -89,21 +112,40 @@ impl GameStatus {
     }
 }
 
+/// This struct is intended mainly to be the return type of the `alpha_beta()` function. It
+/// contains all of the necessary information needed to calculate the move and resulting score.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MoveScoreTurns {
     pub score: GameStatus,
-    pub turns_to_win: u32,
+    pub blank_squares_remaining: u32,
     pub player_move: Point,
 }
 
+/// Since the alpha-beta pruning algorithm is a direct upgrade from the naive minmax algorithm,
+/// the heuristic used to calculate the score needs to be able to be ordered. Arbitrarily,
+/// player using the O pieces is the minimizing player and the one with the X pieces is the
+/// maximizing player. Consequently, the basic ordering is as follows:
+///
+/// `OWin` < (`Draw` = `StillPlaying`) < `XWin`.
+///
+/// The only subtlety to this is that the move that will win in the fewest number of turns should
+/// be selected. This means that if both `MoveScoreTurns` instances have the same `score` and the
+/// number of `blank_squares_remaining` is higher for Move A than Move B:
+///
+/// Move A < Move B when `score` == `OWin`
+/// Move A > Move B when `score` == `XWin`.
 impl Ord for MoveScoreTurns {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         type GS = GameStatus;
         match (self.score, other.score) {
-            (GS::OWin, GS::OWin) => {
-                std::cmp::Ordering::reverse(self.turns_to_win.cmp(&other.turns_to_win))
-            } // The higher turns to win should be less in this case
-            (GS::XWin, GS::XWin) => self.turns_to_win.cmp(&other.turns_to_win), // The higher turns to win should be greater in this case
+            (GS::OWin, GS::OWin) => std::cmp::Ordering::reverse(
+                self.blank_squares_remaining
+                    .cmp(&other.blank_squares_remaining),
+            ), // The higher number of `blank_squares_remaining` should be `Less` in this case
+
+            (GS::XWin, GS::XWin) => self
+                .blank_squares_remaining
+                .cmp(&other.blank_squares_remaining), // The higher number of `blank_squares_remaining` should be `Greater` in this case
 
             (GS::Draw | GS::StillPlaying, GS::OWin)
             | (GS::XWin, GS::Draw | GS::StillPlaying | GS::OWin) => std::cmp::Ordering::Greater,
