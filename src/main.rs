@@ -7,6 +7,6 @@ mod tic_tac_toe_board;
 fn main() {
     match config::Config::build(std::env::args()) {
         Ok(config) => tic_tac_toe_board::Board::run(&config),
-        Err(e) => println!("{e}"),
+        Err(e) => println!("{e}\n\n{}", config::Config::CLI_HELP_MESSAGE),
     }
 }
