@@ -1,5 +1,4 @@
-# tic-tac-toe
----
+# `tic-tac-toe`
 A simple cli tic-tac-toe implementation against a computer opponent.
 
 ## Usage
