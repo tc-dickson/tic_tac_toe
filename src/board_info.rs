@@ -72,5 +72,6 @@ impl std::fmt::Display for Point {
 }
 
 impl Point {
+    // Define an associated constant to help eliminate "magic numbers"
     pub const NUM_ARGUMENTS: usize = 2;
 }
