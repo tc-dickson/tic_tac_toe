@@ -1,10 +1,9 @@
-/// An enum that holds the possible states of the tic-tac-toe board
-/// The player plays with the X pieces and the opponent with the O pieces
+/// This defines the possible states of the tic-tac-toe board
 #[derive(Debug, Clone)]
 pub enum SquareType {
     B, // Blank square
-    O, // Opponent's square
-    X, // Player's square
+    O, 
+    X, 
 }
 
 /// For `SquareType::B` render a space. For the others, render the corresponding letter
@@ -33,12 +32,15 @@ impl Opponent {
         }
     }
 }
+
+/// This along with `Opponent` helps define what pieces the user/computer is playing wirh 
 pub enum Player {
     X,
     O,
 }
 
 impl Player {
+    /// Return the player type that is not the one currently initialized
     pub fn other(&self) -> Player {
         match self {
             Player::O => Player::X,
@@ -46,6 +48,8 @@ impl Player {
         }
     }
 
+    /// `Player` X playes with X pieces
+    /// `Player` O playes with O pieces
     pub fn square_type(&self) -> SquareType {
         match self {
             Player::X => SquareType::X,
@@ -54,6 +58,7 @@ impl Player {
     }
 }
 
+/// The x, y coordinates of a square on a board
 #[derive(Default, Debug, PartialEq, Eq, Hash, Copy, Clone, PartialOrd, Ord)]
 pub struct Point {
     pub x: usize,
