@@ -1,5 +1,42 @@
 # `tic-tac-toe`
-A simple cli tic-tac-toe implementation against a computer opponent.
+A simple CLI tic-tac-toe implementation against a computer opponent.
+
+## Overview
+A classic game implemented in Rust to reinforce foundational skills and gain hands-on experience.
+
+## Features / Capabilities
+  - AI opponent implemented using depth-limited minimax algorithm with [alpha-beta pruning](https://en.wikipedia.org/wiki/Alpha-beta_pruning).
+  - Simple CLI arguments to select which pieces to play with (x or o) and whether to go first or second.
+  - Error handling allowing the user to try again if the game detected an invalid move input.
+
+## Key Technologies
+
+| Programming Language  | Platform                 |
+| --------------------- | ------------------------ |
+| - Rust                | - Command Line Interface |
+
+## What I Learned
+I'm currently learning Rust, and this project was a hands-on opportunity to apply what I've been studying. As the primary goal was to deepen my understanding of core Rust concepts, I intentionally avoided using external libraries—even when they could have streamlined the development process.
+
+Through this project, I gained experience with:
+
+  - Implementing the alpha-beta pruning algorithm for AI decision-making
+  - Parsing user input and handling invalid entries gracefully
+  - Applying Rust’s error handling patterns
+  - Writing and organizing unit tests
+  - Following good documentation practices
+  - Structuring code using modules for clarity and reusability
+  - Working with Cargo for building and testing
+
+## Media
+![Gameplay GIF](./media/game.gif)
+
+## Files Included
+
+| Folder/File | Description |
+| ----------- | ----------- |
+| /src/       | Source Code |
+| /media/     | GIF         |
 
 ## Usage
 ```
@@ -17,54 +54,4 @@ tic-tac-toe [player_piece_type] [first_or_second]
 | -------- | ----------- |
 | "1"      | Play first  |
 | "2"      | Play second |
-
-## Things of Note
-There are a few things to highlight:
-  - Ai opponent implemented using depth-limited minmax with [alpha-beta pruning](https://en.wikipedia.org/wiki/Alpha-beta_pruning).
-  - Simple cli arguments to select which pieces to play with (x or o) and whether to go first or second.
-  - Error handling allowing the user to try again if the game detected an invalid move input.
-
-## Why?
-I am in the midst of learning Rust. This project gave me an excuse to practice what I have been learning. Since the goal of this project was learning Rust, I specifically avoided using external packages (though they could greatly improve this project). Among the things I've learned:
-
-  - Alpha-Beta tree pruning algorithm
-  - Simple user input parsing
-  - Error handling
-  - Testing principles
-  - Documentation principles
-  - Code structuring with modules
-  - Cargo build tool basics
-
-## Overview
-- A brief paragraph explaining the project:
-	- What it is
-	- What problem it solves or explores
-	- Key features or technologies involved
-	- Whether it was a solo or team effort
-## Key Technologies
-
-| Programming Language(s)              | Hardware                                                | Software                                |
-| ------------------------------------ | ------------------------------------------------------- | --------------------------------------- |
-| - Python </br> - C++ </br> - Arduino | - ESP32 </br> - NEMA17 Stepper </br> - 3D Printed Parts | - Fusion 360 </br> - Altium </br> - QMK |
-
-## Features / Capabilities
-- Description of Feature #1
-- Description of Feature #2
-- Description of Feature #3 (optional)
-## What I Learned
-- One or two sentences on key takeaways: technical skills, design decisions, or debugging challenges you overcame.
-## Media
-- Images or GIFs of the project (working, exploded views, prototype stages)
-- Optional: YouTube demo or other video link
-## Files Included
-
-| Folder/File | Description                     |
-| ----------- | ------------------------------- |
-| /code/      | Source code and firmware        |
-| /cad/       | 3D printing models or CAD files |
-| /docs/      | Documentation or test reports   |
-| /media/     | photos and videos               |
-## Notes
-Any disclaimers, future work plans, or known limitations.
-
 
