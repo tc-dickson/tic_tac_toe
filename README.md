@@ -1,6 +1,8 @@
 # `tic-tac-toe`
 A simple CLI tic-tac-toe implementation against a computer opponent.
 
+![Gameplay GIF](./media/game.gif)
+
 ## Overview
 A classic game implemented in Rust to reinforce foundational skills and gain hands-on experience.
 
@@ -27,16 +29,6 @@ Through this project, I gained experience with:
   - Following good documentation practices
   - Structuring code using modules for clarity and reusability
   - Working with Cargo for building and testing
-
-## Media
-![Gameplay GIF](./media/game.gif)
-
-## Files Included
-
-| Folder/File | Description |
-| ----------- | ----------- |
-| /src/       | Source Code |
-| /media/     | GIF         |
 
 ## Usage
 ```
